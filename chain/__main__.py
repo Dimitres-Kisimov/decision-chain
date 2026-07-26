@@ -149,12 +149,18 @@ def run_report(fixture: bool = False, n_skus: int | None = None) -> bool:
         print(
             f"  so its measured sigma buys {float(lumpy['SafetyStockWeeks'].iloc[0]):.2f} weeks of "
             f"buffer vs {float(smooth['SafetyStockWeeks'].iloc[0]):.2f} for smooth "
-            f"({ratio:.1f}x) -- that is the cost of unforecastability, not a modelling win."
+            f"({ratio:.1f}x) -- the cost of unforecastability, not a modelling win."
         )
     elif len(lumpy):
         print(
             "  HONEST NOTE: lumpy demand is unforecastable (stage 1: naive wins, MASE > 1); "
             f"its buffer is {float(lumpy['SafetyStockWeeks'].iloc[0]):.2f} weeks of demand."
+        )
+    if len(summary):
+        widest = summary.loc[summary["SafetyStockWeeks"].idxmax()]
+        print(
+            f"  measured widest buffer per unit of demand: class {widest['Class']} at "
+            f"{float(widest['SafetyStockWeeks']):.2f} SS weeks (reported as measured)."
         )
     print()
 
