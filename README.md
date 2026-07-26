@@ -26,8 +26,9 @@ of its inputs, and reports must print the tag.
 | Demand (weekly units per SKU) | **REAL** (lossless aggregation) | phase 1 (done) |
 | Seasonality, returns | **REAL** | phase 1 (done) |
 | Forecasts, uncertainty | derived (from real) | phase 1 (done) |
-| SKU dimensions / weights | **SYNTHETIC-ASSIGNED** (seeded, labelled) | phase 2+ |
-| Warehouse geometry, slotting | **SYNTHETIC-ASSIGNED** (seeded, labelled) | phase 2/3+ |
+| SKU dimensions / weights | **SYNTHETIC-ASSIGNED** (seeded, labelled) | **phase 2 (done)** — description-keyword size classes |
+| Supplier lead times | **SYNTHETIC-ASSIGNED** (seeded, labelled) | **phase 2 (done)** — per demand class + jitter |
+| Warehouse geometry, slotting | **SYNTHETIC-ASSIGNED** (seeded, labelled) | **phase 2 (done)** — 8 aisles x 25 bays, rectilinear |
 | Customer geography (within real countries) | **SYNTHETIC-ASSIGNED** (seeded, labelled) | phase 3+ |
 | Cost rates (pick, km, holding) | **SYNTHETIC-ASSIGNED** (seeded, labelled) | phase 3/4+ |
 
@@ -43,11 +44,11 @@ later phases implement against them:
 |---|---|---|---|
 | 0 ingest | raw workbook | `CleanedTransactions`, `WeeklyDemand`, `InvoiceStream` | **1 (done)** |
 | 1 forecast | `WeeklyDemand` | `DemandForecast` (units/week + sigma per SKU) | **1 (done)** |
-| 2 inventory | `DemandForecast` | `ReplenishmentPlan` | 2 |
-| 3 warehouse | `InvoiceStream` + plan | `WarehouseWorkload` (pick lists) | 2/3 |
+| 2 inventory | `DemandForecast` | `ReplenishmentPlan` | **2 (done)** |
+| 3 warehouse | `InvoiceStream` + plan | `WarehouseWorkload` (pick lists) | **2 (done)** |
 | 4 transport | `WarehouseWorkload` | `TransportPlan` | 3 |
 | 5 costing | all upstream | `CostToServe` | 3/4 |
-| 6 reconcile | ledger entries from 0-5 | identity checks (PASS/FAIL, both numbers) | **1 (harness done)** |
+| 6 reconcile | ledger entries from 0-5 | identity checks (PASS/FAIL, both numbers) | **1-2 (a-h done)** |
 
 ## Phase 1 — what is measured (real data, full run)
 
@@ -98,6 +99,64 @@ smooth/erratic classes comes largely from behaving like a well-damped level esti
 seasonal-naive never wins a class, because one full seasonal cycle of history (104 weeks,
 52-week season) is barely one observation of the seasonality per SKU.
 
+## Phase 2 — what is measured (real data, full run, 2026-07-27)
+
+Phase 2 adds the first labelled synthetic layers (`chain/synthetic.py`, seed 42):
+SKU dims/weights drawn per description-keyword size class (small: 20, medium: 136,
+large: 44 of the 200 tracked SKUs), supplier lead times of 2-5 weeks assigned per
+demand class, and a 200-slot warehouse (8 aisles x 25 bays, rectilinear cross-aisle
+travel, dispatch at the front corner). Everything downstream of these layers is
+provenance-capped at `synthetic-assigned`, and identity (h) machine-checks the labels.
+
+### Stage 2 — replenishment (base-stock, 95% service, weekly review)
+
+All 185 forecasted SKUs get a plan (identity (e)): total order-up-to 251,658 units,
+total safety stock 91,878 units, on synthetic lead times that the plan declares.
+The buffer each demand class carries, in weeks of its forecast demand (sqrt-law on
+the *measured* rolling-origin sigma):
+
+| class | SKUs | mean lead | pooled sigma/mu | safety-stock weeks |
+|---|---:|---:|---:|---:|
+| smooth | 44 | 2.5w | 0.55 | 1.70 |
+| intermittent | 1 | 5.0w | 0.45 | 1.83 |
+| lumpy | 18 | 4.4w | 0.60 | 2.30 |
+| erratic | 122 | 3.5w | 0.86 | 3.02 |
+
+The honest reading: lumpy demand is unforecastable (stage 1: nothing beats naive,
+MASE 1.78), so its measured sigma buys 2.30 weeks of buffer against 1.70 for smooth
+(1.4x) — the cost of unforecastability, not a modelling win. And measured, the
+*widest* buffer per unit of demand is actually the erratic class (3.02 weeks): its
+122 SKUs forecast decently in MASE terms yet still carry sigma/mu 0.86 into the
+sqrt-law. Both numbers are reported as measured.
+
+### Stage 3 — three slottings on the identical 33,492 real invoices
+
+Real invoice lines become nearest-neighbour pick tours in the synthetic warehouse;
+velocity is REAL (invoice lines per SKU); travel is `synthetic-assigned` (invented
+geometry) and labelled so. Mean pick travel per invoice, same invoice set (identity (g)):
+
+| slotting | mean travel / invoice | vs random | vs abc |
+|---|---:|---:|---:|
+| random (seeded baseline) | 214.3 m | — | — |
+| abc (by real velocity) | 183.2 m | **-14.5%** | — |
+| assignment-optimal (Hungarian) | 180.2 m | **-15.9%** | -1.6% |
+
+Honest notes: with one scalar distance per slot, the linear-assignment optimum on
+velocity x distance is exactly velocity-sorted placement (rearrangement inequality),
+so `optimal` differs from `abc` only in how velocity ties are broken — measured on
+real multi-line pick tours those tie-breaks are still worth 1.6%. On the small CI
+fixture (mostly single-line invoices) the two are identical, and the tests assert
+the ordering that actually holds, not a hoped-for one.
+
+### Identity checks e-h (full dataset, all PASS — a-d unchanged)
+
+| # | identity | lhs | rhs | result |
+|---|---|---:|---:|---|
+| e | replenishment covers every forecasted SKU | 185 | 185 | **PASS** |
+| f | picked lines (all tours) == invoice-stream lines | 256,787 | 256,787 | **PASS** |
+| g | identical invoice set across all three slottings | 256,787 | 256,787 | **PASS** |
+| h | provenance audit (travel synthetic, demand/velocity real) | 6 | 6 | **PASS** |
+
 ## How to run
 
 ```bash
@@ -107,7 +166,7 @@ pip install -r requirements.txt
 # directory (chain/paths.py finds its data/raw/ automatically), or:
 python scripts/download_data.py
 
-python -m chain --report              # full dataset: stages 0-1 + reconciliation
+python -m chain --report              # full dataset: stages 0-3 + reconciliation
 python -m chain --report --fixture    # committed real-row fixture (CI path, no download)
 
 ruff check .   # lint gate
@@ -119,14 +178,14 @@ The dataset itself is not redistributed (CC BY 4.0, see [CREDITS.md](CREDITS.md)
 
 ## Roadmap
 
-- **Phase 2 — inventory + warehouse skeleton**: reorder points and safety stock from
-  `DemandForecast` (synthetic-assigned lead times, labelled); invoice stream becomes pick
-  lists in a seeded synthetic warehouse; new identities: picked units == invoiced units
-  per SKU, plan covers every forecast SKU.
-- **Phase 3 — transport + geography**: shipment consolidation and routing on real
+- [x] **Phase 2 — inventory + warehouse** (done): base-stock replenishment from
+  `DemandForecast` on labelled synthetic lead times; real invoices picked as tours in
+  the seeded synthetic warehouse, three slottings compared honestly; identities e-h
+  (coverage, pick conservation, same-invoice evaluation, provenance audit).
+- [ ] **Phase 3 — transport + geography**: shipment consolidation and routing on real
   destination countries with seeded coordinates; identities: shipped == picked, every
   shipment maps to a real invoice.
-- **Phase 4 — costing + the closing of the loop**: cost-to-serve per SKU/invoice on
+- [ ] **Phase 4 — costing + the closing of the loop**: cost-to-serve per SKU/invoice on
   labelled synthetic rates; the final identity closes the chain — end-of-chain revenue
   equals the stage-0 revenue, to the penny.
 

@@ -58,14 +58,24 @@ positively.
 |---|---|---|
 | repo boundary | cleaned revenue == published figure (to the penny) | two teams "cleaning" the same data differently |
 | ingest -> forecast | weekly demand sum == invoice line sum | forecasting a series that drifted from the transactions |
-| ingest -> warehouse (P2) | pick-list lines == cleaned sales lines | labor planned on a different order count than billed |
-| forecast -> inventory (P2) | every forecast SKU exists in demand | plans for phantom articles |
+| forecast -> inventory (P2, done) | replenishment covers every forecasted SKU, both directions | plans for phantom articles / articles nobody plans |
+| ingest -> warehouse (P2, done) | lines picked across all tours == invoice-stream lines (256,787 == 256,787) | labor planned on a different order count than billed |
+| warehouse evaluation (P2, done) | all slotting variants measured on the identical invoice set | comparing layouts on cherry-picked order samples |
+| provenance (P2, done) | travel numbers labelled synthetic-assigned, demand/velocity labelled real | invented geometry quietly presented as data |
 | chain -> costing (P3+) | end-of-chain revenue == start-of-chain revenue | cost-to-serve allocated over the wrong base |
 
-Phase 1 implements the first four (the warehouse seam in its P1 form: the
-invoice stream that becomes the pick lists). Later phases extend the same
-ledger through inventory, warehouse, transport, and costing — every new stage
-arrives with its conservation identities, or it does not merge.
+Phases 1-2 implement the first six; identities a-h all PASS on the full
+dataset. Later phases extend the same ledger through transport and costing —
+every new stage arrives with its conservation identities, or it does not merge.
+
+Phase 2 also puts a first number on two classic seam decisions, with the
+boundary declared: slotting the warehouse by *real* pick velocity instead of
+randomly cuts mean pick travel per invoice by 14.5% (183.2 vs 214.3 m over
+33,492 real invoices; exact linear-assignment slotting adds another 1.6%) —
+inside an *invented*, labelled geometry, so the % is the claim, not the
+metres. And the safety-stock table prices forecast quality directly: the
+erratic class carries 3.02 weeks of demand as buffer and lumpy 2.30 vs 1.70
+for smooth — the measured cost of unforecastability at a 95% service target.
 
 ## Honesty as a design constraint
 
