@@ -16,8 +16,16 @@ import pandas as pd
 import pytest
 
 from chain import forecast as forecast_stage
-from chain import ingest, paths
-from chain.contracts import CleanedTransactions, DemandForecast, InvoiceStream, WeeklyDemand
+from chain import ingest, inventory, paths, synthetic, warehouse
+from chain.contracts import (
+    CleanedTransactions,
+    DemandForecast,
+    InvoiceStream,
+    ReplenishmentPlan,
+    WeeklyDemand,
+)
+from chain.synthetic import SyntheticLayers
+from chain.warehouse import WarehouseResult
 
 N_SKUS_FIXTURE = 25
 
@@ -46,3 +54,24 @@ def stage0(raw_fixture: pd.DataFrame) -> tuple[CleanedTransactions, WeeklyDemand
 def stage1(stage0) -> DemandForecast:
     _, demand, _ = stage0
     return forecast_stage.run(demand)
+
+
+@pytest.fixture(scope="session")
+def layers(stage0, stage1) -> SyntheticLayers:
+    cleaned, demand, _ = stage0
+    descriptions = synthetic.modal_descriptions(cleaned.sales, demand.skus)
+    classes = (
+        stage1.forecasts.drop_duplicates("StockCode").set_index("StockCode")["Class"].to_dict()
+    )
+    return synthetic.build(demand.skus, descriptions, classes)
+
+
+@pytest.fixture(scope="session")
+def stage2(stage1, layers) -> ReplenishmentPlan:
+    return inventory.run(stage1, layers)
+
+
+@pytest.fixture(scope="session")
+def stage3(stage0, layers) -> WarehouseResult:
+    _, _, stream = stage0
+    return warehouse.run(stream, layers)
