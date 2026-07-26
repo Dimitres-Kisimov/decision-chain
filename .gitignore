@@ -1,0 +1,21 @@
+# Raw data is NOT committed (45 MB xlsx; the repo reads the sibling
+# retail-analytics-real checkout or a local download — see README).
+data/
+
+# Generated outputs
+deliverables/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
