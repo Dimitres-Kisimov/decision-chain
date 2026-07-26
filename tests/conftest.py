@@ -15,15 +15,18 @@ import json
 import pandas as pd
 import pytest
 
+from chain import costing, deliver, fulfil, ingest, inventory, paths, synthetic, warehouse
 from chain import forecast as forecast_stage
-from chain import ingest, inventory, paths, synthetic, warehouse
 from chain.contracts import (
     CleanedTransactions,
     DemandForecast,
+    FulfilmentLog,
     InvoiceStream,
     ReplenishmentPlan,
     WeeklyDemand,
 )
+from chain.costing import CostingResult
+from chain.deliver import DeliveryResult
 from chain.synthetic import SyntheticLayers
 from chain.warehouse import WarehouseResult
 
@@ -75,3 +78,21 @@ def stage2(stage1, layers) -> ReplenishmentPlan:
 def stage3(stage0, layers) -> WarehouseResult:
     _, _, stream = stage0
     return warehouse.run(stream, layers)
+
+
+@pytest.fixture(scope="session")
+def stage4(stage0, stage3, layers) -> FulfilmentLog:
+    _, demand, stream = stage0
+    return fulfil.simulate(stream, stage3.workload, layers, demand.weeks)
+
+
+@pytest.fixture(scope="session")
+def stage5(stage0, stage4) -> DeliveryResult:
+    cleaned, _, _ = stage0
+    return deliver.run(cleaned, stage4)
+
+
+@pytest.fixture(scope="session")
+def stage6(stage0, stage2, stage4, stage5) -> CostingResult:
+    cleaned, demand, _ = stage0
+    return costing.run(cleaned, demand.skus, stage2, stage4, stage5)
