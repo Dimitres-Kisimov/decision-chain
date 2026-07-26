@@ -1,4 +1,4 @@
-"""Entry point: run stages 0-3 + reconciliation and print the honest P1+P2 report.
+"""Entry point: run stages 0-5 + reconciliation and print the honest P1-P3 report.
 
     python -m chain --report              # full real dataset (needs raw data on disk)
     python -m chain --report --fixture    # committed ~2k-row real fixture (CI path)
@@ -13,8 +13,18 @@ import argparse
 import json
 import sys
 
+from chain import (
+    costing,
+    deliver,
+    fulfil,
+    ingest,
+    inventory,
+    paths,
+    reconcile,
+    synthetic,
+    warehouse,
+)
 from chain import forecast as forecast_stage
-from chain import ingest, inventory, paths, reconcile, synthetic, warehouse
 from chain.contracts import Provenance
 
 
@@ -46,7 +56,7 @@ def run_report(fixture: bool = False, n_skus: int | None = None) -> bool:
         source = "full UCI Online Retail II dataset"
 
     _rule("=")
-    print("decision-chain -- Phase 1+2 report (stages 0-3 + reconciliation)")
+    print("decision-chain -- Phase 1-3 report (stages 0-5 + reconciliation)")
     _rule("=")
     print(f"source: {source}")
     print()
@@ -189,6 +199,83 @@ def run_report(fixture: bool = False, n_skus: int | None = None) -> bool:
         print("  the exact solver only re-breaks velocity ties. Reported as measured.")
     print()
 
+    # stage 4a -- fulfilment DES (representative window)
+    ful = fulfil.simulate(stream, wh.workload, layers, demand.weeks)
+    window = ful.window_weeks
+    print(f"stage 4a -- fulfilment DES {ful.provenance.tag()} "
+          f"({ful.assumptions['n_pickers']} synthetic pickers, deployed optimal slotting)")
+    print(f"  representative window     {len(window)} of {len(demand.weeks)} weeks "
+          f"({window[0].date()} .. {window[-1].date()})")
+    print("  window rule               contiguous span with the most invoice lines")
+    print("  (simulating all weeks through the CVRP stage is slow; stages 4-5 run")
+    print("  on this SAME window and every window identity says so explicitly)")
+    n_days = len(ful.per_day)
+    if n_days:
+        print(f"  orders shipped            {len(ful.orders):>12,} "
+              f"across {n_days} working days")
+        print(f"  lines picked              {int(ful.orders['Lines'].sum()):>12,}")
+        print(f"  mean orders/day           {len(ful.orders) / n_days:>12.1f}")
+        n_pickers = int(ful.assumptions["n_pickers"])
+        util = ful.labour_hours / (n_days * n_pickers * 8.0)
+        print(f"  labour hours (picking)    {ful.labour_hours:>12.1f} "
+              f"(~{ful.labour_hours / n_days:.1f} h/day; {100 * util:.0f}% of a "
+              f"{n_pickers}-picker 8h-day crew -- utilisation reported, not hidden)")
+        print(f"  mean order wait           {float(ful.orders['WaitMin'].mean()):>12.1f} min "
+              f"(p95 {float(ful.orders['WaitMin'].quantile(0.95)):.1f})")
+        print(f"  cartons shipped           {ful.cartons_shipped:>12,} "
+              f"(FFD, {int(ful.assumptions['carton_cm'][0])}x"
+              f"{int(ful.assumptions['carton_cm'][1])}x"
+              f"{int(ful.assumptions['carton_cm'][2])}cm, "
+              f"{ful.assumptions['carton_max_kg']:.0f}kg cap)")
+    print()
+
+    # stage 4b -- transport CVRP per delivery day
+    dl = deliver.run(cleaned, ful)
+    print(f"stage 4b -- transport {dl.plan.provenance.tag()} "
+          "(seeded per-customer coordinates -- INVENTED geography)")
+    n_uk = int((dl.plan.shipments["Country"] == "United Kingdom").sum())
+    n_exp = len(dl.plan.shipments) - n_uk
+    print(f"  drops routed              {len(dl.plan.shipments):>12,} "
+          f"({n_uk:,} UK band, {n_exp:,} export band)")
+    print(f"  delivery days             {len(dl.per_day):>12,}")
+    print(f"  vehicle capacity          {dl.plan.assumptions['vehicle_capacity_cartons']:>12,} cartons; "
+          f"solution limit {dl.plan.assumptions['solution_limit']} (deterministic, not wall-clock)")
+    cvrp_km, cw_km = dl.total_cvrp_km, dl.total_cw_km
+    delta_pct = 100.0 * (cvrp_km - cw_km) / cw_km if cw_km else 0.0
+    print(f"  Clarke-Wright baseline    {cw_km:>12,.1f} km  "
+          f"({int(dl.per_day['CwVehicles'].sum()):,} vehicle-days)")
+    print(f"  OR-Tools CVRP             {cvrp_km:>12,.1f} km  "
+          f"({int(dl.per_day['CvrpVehicles'].sum()):,} vehicle-days)  "
+          f"{delta_pct:+.1f}% vs CW")
+    wins = int((dl.per_day["CvrpKm"] < dl.per_day["CwKm"] - 1e-6).sum())
+    ties = int((abs(dl.per_day["CvrpKm"] - dl.per_day["CwKm"]) <= 1e-6).sum())
+    losses = len(dl.per_day) - wins - ties
+    print(f"  per-day record            CVRP wins {wins}, ties {ties}, loses {losses} "
+          f"of {len(dl.per_day)} days (measured, not assumed)")
+    if cvrp_km <= cw_km:
+        print("  HONEST NOTE: the CVRP gain over Clarke-Wright is what it is above --")
+        print("  on this synthetic geography many small same-band drops leave the 1964")
+        print("  construction little to lose; the delta is measured, not sold as savings.")
+    else:
+        print("  HONEST NOTE: within this deterministic solution budget the metaheuristic")
+        print("  did NOT beat the 1964 Clarke-Wright construction overall -- reported")
+        print("  as measured; the ledger costs the CVRP plan the chain actually emits.")
+    print()
+
+    # stage 5 -- cost-to-serve ledger
+    cs = costing.run(cleaned, demand.skus, plan, ful, dl)
+    print(f"stage 5 -- cost-to-serve {tag_synth} "
+          f"(window of {len(window)} weeks; NO profit claims -- every rate is INVENTED)")
+    print("  input split: REAL order composition/timestamps/revenue; every rate,")
+    print("  hour, km and safety-stock unit is synthetic-assigned (labelled).")
+    print(f"  {'item':<22} {'GBP':>14}      {'provenance':<21} basis")
+    for line in cs.lines:
+        print(f"  {line.formatted()}")
+    ratio = cs.total_cost_gbp / cs.window_revenue_gbp if cs.window_revenue_gbp else 0.0
+    print(f"  modelled cost equals {100 * ratio:.1f}% of window revenue -- a cost-structure")
+    print("  view under labelled assumptions, NOT a margin statement.")
+    print()
+
     # stage 6
     print(f"stage 6 -- reconciliation {tag_real}/{tag_derived}/{tag_synth}")
     ledger = reconcile.Ledger()
@@ -196,8 +283,11 @@ def run_report(fixture: bool = False, n_skus: int | None = None) -> bool:
     reconcile.register_stage1(ledger, fc)
     reconcile.register_stage2(ledger, plan)
     reconcile.register_stage3(ledger, wh)
+    reconcile.register_stage4(ledger, stream, ful, dl)
+    reconcile.register_stage5(ledger, cs)
     checks = reconcile.run_phase1_checks(ledger, fc, demand, expected_revenue)
     checks += reconcile.run_phase2_checks(ledger, plan, fc, wh)
+    checks += reconcile.run_phase3_checks(ledger, cleaned, demand, ful)
     all_passed = reconcile.print_checks(checks)
     print()
     _rule()
@@ -210,7 +300,7 @@ def run_report(fixture: bool = False, n_skus: int | None = None) -> bool:
 def main(argv: list[str] | None = None) -> int:
     _utf8_console()
     parser = argparse.ArgumentParser(prog="chain", description=__doc__)
-    parser.add_argument("--report", action="store_true", help="run stages 0-3 + reconciliation")
+    parser.add_argument("--report", action="store_true", help="run stages 0-5 + reconciliation")
     parser.add_argument("--fixture", action="store_true", help="use the committed fixture (CI)")
     parser.add_argument("--skus", type=int, default=None, help="override tracked-SKU count")
     args = parser.parse_args(argv)

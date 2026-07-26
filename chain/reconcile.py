@@ -37,6 +37,26 @@ Phase 2 identities (stages 2-3):
                           demand/velocity inputs stay labelled real — the
                           ledger is checked tag by tag.
 
+Phase 3 identities (stages 4-5, all on the SAME representative window):
+
+(i) window pick conservation   DES picked lines == the invoice-stream line
+                               count for the window (independent recount
+                               straight from the stream frame).
+(j) carton conservation        cartons shipped (per-day aggregation) ==
+                               cartons packed (per-order packing) — the
+                               aggregation invents/loses nothing.
+(k) drop conservation          drops counted from the ROUTE STRUCTURES
+                               (CVRP node lists + peeled full-load orders)
+                               == orders the DES shipped: none lost, none
+                               duplicated between stage 4a and 4b.
+(l) ledger additivity          the costing summary's total cost == the sum
+                               of the four registered cost lines, to the
+                               cent.
+(m) window revenue             the ledger's window revenue == the cleaned-
+                               data revenue for the same window, to the
+                               penny, recomputed via chain/ingest.py's
+                               window filter (costing uses its own).
+
 On the committed fixture, identity (a) compares against the value recorded in
 tests/fixtures/expected.json at fixture-generation time (the full-data
 constant is only reachable with the real dataset on disk).
@@ -53,12 +73,16 @@ from chain.contracts import (
     CheckResult,
     CleanedTransactions,
     DemandForecast,
+    FulfilmentLog,
     InvoiceStream,
     LedgerEntry,
     Provenance,
     ReplenishmentPlan,
     WeeklyDemand,
 )
+from chain.costing import CostingResult
+from chain.deliver import DeliveryResult
+from chain.fulfil import window_lines
 from chain.warehouse import VARIANTS, SlottingComparison, WarehouseResult
 
 # Published by my retail-analytics-real repo (README: "GBP 19,643,862" of
@@ -237,6 +261,86 @@ def register_stage3(ledger: Ledger, result: WarehouseResult) -> None:
         )
 
 
+def register_stage4(
+    ledger: Ledger,
+    stream: InvoiceStream,
+    fulfilment: FulfilmentLog,
+    delivery: DeliveryResult,
+) -> None:
+    """Stages 4a/4b register window numbers; each identity side has its own code path."""
+    # Independent recount of the window's lines, straight from the stream frame.
+    ledger.register(
+        "window/stream_lines",
+        float(len(window_lines(stream, fulfilment.window_weeks))),
+        "lines",
+        stream.provenance,
+        f"invoice-stream lines inside the {len(fulfilment.window_weeks)}-week window",
+    )
+    ledger.register(
+        "fulfil/picked_lines",
+        float(fulfilment.orders["Lines"].sum()),
+        "lines",
+        fulfilment.provenance,
+        "lines the DES picked (per-order log)",
+    )
+    ledger.register(
+        "fulfil/orders",
+        float(len(fulfilment.orders)),
+        "orders",
+        fulfilment.provenance,
+        "orders the DES shipped in the window",
+    )
+    ledger.register(
+        "fulfil/cartons_packed",
+        float(fulfilment.orders["Cartons"].sum()),
+        "cartons",
+        fulfilment.provenance,
+        "cartons packed, summed over the per-order log",
+    )
+    ledger.register(
+        "fulfil/cartons_shipped",
+        float(fulfilment.per_day["Cartons"].sum()),
+        "cartons",
+        fulfilment.provenance,
+        "cartons shipped, summed over the per-day aggregation",
+    )
+    ledger.register(
+        "fulfil/labour_hours",
+        fulfilment.labour_hours,
+        "hours",
+        fulfilment.provenance,
+        "DES picking labour (synthetic crew/geometry)",
+    )
+    ledger.register(
+        "transport/routed_drops",
+        float(delivery.routed_drops),
+        "orders",
+        delivery.plan.provenance,
+        "drops counted from the route structures (CVRP nodes + peeled full loads)",
+    )
+    ledger.register(
+        "transport/cvrp_km",
+        delivery.total_cvrp_km,
+        "km",
+        delivery.plan.provenance,
+        "CVRP route km over the window (invented coordinates)",
+    )
+    ledger.register(
+        "transport/cw_km",
+        delivery.total_cw_km,
+        "km",
+        delivery.plan.provenance,
+        "Clarke-Wright baseline km, identical instances",
+    )
+
+
+def register_stage5(ledger: Ledger, costing: CostingResult) -> None:
+    """Stage 5 registers each ledger line under its own key, provenance attached."""
+    for line in costing.lines:
+        key = "costing/" + line.item.replace(" ", "_")
+        ledger.register(key, line.gbp, "GBP", line.provenance, line.basis)
+
+
 def check_revenue_identity(
     ledger: Ledger, expected_gbp: float = PUBLISHED_REVENUE_GBP
 ) -> CheckResult:
@@ -412,6 +516,103 @@ def run_phase2_checks(
         check_pick_conservation(ledger),
         check_same_invoice_eval(warehouse_result.comparison),
         check_provenance_audit(ledger),
+    ]
+
+
+def check_window_pick_conservation(ledger: Ledger) -> CheckResult:
+    """(i) the DES picked exactly the window's invoice-stream lines."""
+    return ledger.check(
+        "(i) window pick conservation",
+        "fulfil/picked_lines",
+        "window/stream_lines",
+        tolerance=0.0,
+        note="DES per-order log vs independent stream recount, same window",
+    )
+
+
+def check_carton_conservation(ledger: Ledger) -> CheckResult:
+    """(j) cartons shipped (per-day) == cartons packed (per-order)."""
+    return ledger.check(
+        "(j) carton conservation",
+        "fulfil/cartons_shipped",
+        "fulfil/cartons_packed",
+        tolerance=0.0,
+        note="per-day aggregation vs per-order packing log",
+    )
+
+
+def check_drop_conservation(ledger: Ledger) -> CheckResult:
+    """(k) routed drops (from the route structures) == orders the DES shipped."""
+    return ledger.check(
+        "(k) drop conservation",
+        "transport/routed_drops",
+        "fulfil/orders",
+        tolerance=0.0,
+        note="CVRP nodes + peeled full loads vs shipped orders: none lost/duplicated",
+    )
+
+
+def check_ledger_additivity(ledger: Ledger) -> CheckResult:
+    """(l) costing total == sum of the four registered cost lines, to the cent."""
+    component_sum = sum(
+        ledger.value(f"costing/{item}") for item in ("labour", "transport", "holding", "facility")
+    )
+    ledger.register(
+        "costing/component_sum",
+        component_sum,
+        "GBP",
+        Provenance.SYNTHETIC_ASSIGNED,
+        "labour + transport + holding + facility, re-added here",
+    )
+    return ledger.check(
+        "(l) ledger additivity",
+        "costing/total_cost",
+        "costing/component_sum",
+        tolerance=PENNY,
+        note="summary total vs sum of the four cost lines, to the cent",
+    )
+
+
+def check_window_revenue(
+    ledger: Ledger,
+    cleaned: CleanedTransactions,
+    demand: WeeklyDemand,
+    fulfilment: FulfilmentLog,
+) -> CheckResult:
+    """(m) ledger window revenue == cleaned-data revenue, same window, to the penny.
+
+    The rhs goes through chain/ingest.py's window filter — a different code
+    path from costing's own filter — so agreement is a real cross-check.
+    """
+    lines = ingest.sales_in_week_window(cleaned, demand.skus, fulfilment.window_weeks)
+    ledger.register(
+        "ingest/window_revenue",
+        float(lines["Revenue"].sum()),
+        "GBP",
+        cleaned.provenance,
+        "cleaned revenue, tracked SKUs, same window (ingest's filter)",
+    )
+    return ledger.check(
+        "(m) window revenue",
+        "costing/window_revenue",
+        "ingest/window_revenue",
+        tolerance=PENNY,
+        note="costing's filter vs ingest's filter, same window, to the penny",
+    )
+
+
+def run_phase3_checks(
+    ledger: Ledger,
+    cleaned: CleanedTransactions,
+    demand: WeeklyDemand,
+    fulfilment: FulfilmentLog,
+) -> list[CheckResult]:
+    return [
+        check_window_pick_conservation(ledger),
+        check_carton_conservation(ledger),
+        check_drop_conservation(ledger),
+        check_ledger_additivity(ledger),
+        check_window_revenue(ledger, cleaned, demand, fulfilment),
     ]
 
 
