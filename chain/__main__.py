@@ -1,4 +1,4 @@
-"""Entry point: run stages 0-1 + reconciliation and print the honest P1 report.
+"""Entry point: run stages 0-3 + reconciliation and print the honest P1+P2 report.
 
     python -m chain --report              # full real dataset (needs raw data on disk)
     python -m chain --report --fixture    # committed ~2k-row real fixture (CI path)
@@ -14,7 +14,7 @@ import json
 import sys
 
 from chain import forecast as forecast_stage
-from chain import ingest, paths, reconcile
+from chain import ingest, inventory, paths, reconcile, synthetic, warehouse
 from chain.contracts import Provenance
 
 
@@ -30,6 +30,7 @@ def _rule(char: str = "-") -> None:
 def run_report(fixture: bool = False, n_skus: int | None = None) -> bool:
     tag_real = Provenance.REAL.tag()
     tag_derived = Provenance.DERIVED.tag()
+    tag_synth = Provenance.SYNTHETIC_ASSIGNED.tag()
 
     if fixture:
         raw = ingest.load_fixture()
@@ -45,7 +46,7 @@ def run_report(fixture: bool = False, n_skus: int | None = None) -> bool:
         source = "full UCI Online Retail II dataset"
 
     _rule("=")
-    print("decision-chain -- Phase 1 report (stages 0-1 + reconciliation)")
+    print("decision-chain -- Phase 1+2 report (stages 0-3 + reconciliation)")
     _rule("=")
     print(f"source: {source}")
     print()
@@ -97,12 +98,100 @@ def run_report(fixture: bool = False, n_skus: int | None = None) -> bool:
                 )
     print()
 
+    # synthetic layers (phase 2 inputs -- invented, seeded, labelled)
+    descriptions = synthetic.modal_descriptions(cleaned.sales, demand.skus)
+    demand_classes = (
+        fc.forecasts.drop_duplicates("StockCode").set_index("StockCode")["Class"].to_dict()
+        if len(fc.forecasts)
+        else {}
+    )
+    layers = synthetic.build(demand.skus, descriptions, demand_classes)
+    print(f"synthetic layers {tag_synth} (seed {layers.seed} -- invented, labelled, never data)")
+    size_counts = layers.sku_physical["SizeClass"].value_counts()
+    print("  SKU dims/weights          "
+          + ", ".join(f"{cls}: {int(size_counts.get(cls, 0))}" for cls in ("small", "medium", "large"))
+          + "  (description-keyword rule)")
+    lead_span = (int(layers.lead_times["LeadTimeWeeks"].min()),
+                 int(layers.lead_times["LeadTimeWeeks"].max()))
+    print(f"  supplier lead times       {lead_span[0]}-{lead_span[1]} weeks by demand class + jitter")
+    geo = layers.geometry
+    print(f"  warehouse geometry        {geo.n_slots} slots "
+          f"({geo.assumptions['aisles']} aisles x {geo.assumptions['bays_per_aisle']} bays), "
+          f"capacity >= {len(demand.skus)} tracked SKUs")
+    print()
+
+    # stage 2
+    plan = inventory.run(fc, layers)
+    print(f"stage 2 -- inventory {plan.provenance.tag()} "
+          f"(service level {plan.assumptions['service_level']:.0%}, weekly review, "
+          "base-stock + sqrt-law)")
+    print(f"  SKUs planned              {plan.plan['StockCode'].nunique():>12,} "
+          f"(= every forecasted SKU; identity (e))")
+    print(f"  total order-up-to         {plan.plan['OrderUpTo'].sum():>15,.0f} units")
+    print(f"  total safety stock        {plan.plan['SafetyStock'].sum():>15,.0f} units")
+    summary = inventory.class_summary(plan)
+    print("  per class (safety-stock weeks = SS / weekly demand -- the buffer the")
+    print("  forecast quality costs):")
+    for _, row in summary.sort_values("SafetyStockWeeks").iterrows():
+        print(
+            f"    {row['Class']:<13} {int(row['SKUs']):>4} SKUs  lead {row['MeanLeadWeeks']:.1f}w  "
+            f"sigma/mu {row['SigmaOverMu']:>8.2f}  SS weeks {row['SafetyStockWeeks']:>7.2f}"
+        )
+    lumpy = summary.loc[summary["Class"] == "lumpy"]
+    smooth = summary.loc[summary["Class"] == "smooth"]
+    if len(lumpy) and len(smooth):
+        ratio = float(lumpy["SafetyStockWeeks"].iloc[0]) / max(
+            float(smooth["SafetyStockWeeks"].iloc[0]), 1e-9
+        )
+        print(
+            "  HONEST NOTE: lumpy demand is unforecastable (stage 1: naive wins, MASE > 1),"
+        )
+        print(
+            f"  so its measured sigma buys {float(lumpy['SafetyStockWeeks'].iloc[0]):.2f} weeks of "
+            f"buffer vs {float(smooth['SafetyStockWeeks'].iloc[0]):.2f} for smooth "
+            f"({ratio:.1f}x) -- that is the cost of unforecastability, not a modelling win."
+        )
+    elif len(lumpy):
+        print(
+            "  HONEST NOTE: lumpy demand is unforecastable (stage 1: naive wins, MASE > 1); "
+            f"its buffer is {float(lumpy['SafetyStockWeeks'].iloc[0]):.2f} weeks of demand."
+        )
+    print()
+
+    # stage 3
+    wh = warehouse.run(stream, layers)
+    print(f"stage 3 -- warehouse {wh.workload.provenance.tag()} "
+          "(real invoices picked in the synthetic geometry)")
+    print(f"  velocity input            invoice lines per SKU {tag_real}")
+    print("  three slottings, identical real invoice set (identity (g)):")
+    comparison = wh.comparison.summary()
+    for _, row in comparison.iterrows():
+        delta = f"{row['delta_vs_random_pct']:+6.1f}% vs random" if row["variant"] != "random" else "baseline"
+        print(
+            f"    {row['variant']:<8} mean travel {row['mean_travel_m']:>7.1f} m/invoice  "
+            f"({int(row['invoices']):,} invoices, {int(row['lines']):,} lines)  {delta}"
+        )
+    abc_mean = wh.comparison.mean_travel("abc")
+    opt_mean = wh.comparison.mean_travel("optimal")
+    if abs(opt_mean - abc_mean) <= 0.005 * abc_mean:
+        print(
+            "  HONEST NOTE: assignment-optimal ~= ABC here -- with one distance per slot"
+        )
+        print(
+            "  the LAP optimum IS velocity-sorted placement (rearrangement inequality);"
+        )
+        print("  the exact solver only re-breaks velocity ties. Reported as measured.")
+    print()
+
     # stage 6
-    print(f"stage 6 -- reconciliation {tag_real}/{tag_derived}")
+    print(f"stage 6 -- reconciliation {tag_real}/{tag_derived}/{tag_synth}")
     ledger = reconcile.Ledger()
     reconcile.register_stage0(ledger, cleaned, demand, stream)
     reconcile.register_stage1(ledger, fc)
+    reconcile.register_stage2(ledger, plan)
+    reconcile.register_stage3(ledger, wh)
     checks = reconcile.run_phase1_checks(ledger, fc, demand, expected_revenue)
+    checks += reconcile.run_phase2_checks(ledger, plan, fc, wh)
     all_passed = reconcile.print_checks(checks)
     print()
     _rule()
@@ -115,7 +204,7 @@ def run_report(fixture: bool = False, n_skus: int | None = None) -> bool:
 def main(argv: list[str] | None = None) -> int:
     _utf8_console()
     parser = argparse.ArgumentParser(prog="chain", description=__doc__)
-    parser.add_argument("--report", action="store_true", help="run stages 0-1 + reconciliation")
+    parser.add_argument("--report", action="store_true", help="run stages 0-3 + reconciliation")
     parser.add_argument("--fixture", action="store_true", help="use the committed fixture (CI)")
     parser.add_argument("--skus", type=int, default=None, help="override tracked-SKU count")
     args = parser.parse_args(argv)

@@ -22,6 +22,21 @@ Phase 1 identities:
 (d) forecast coverage     every StockCode in the forecast output exists in
                           the weekly-demand SKU set (no orphan forecasts).
 
+Phase 2 identities (stages 2-3):
+
+(e) replenishment cover   the replenishment plan carries EVERY forecasted SKU
+                          and nothing else (no orphans in either direction).
+(f) pick conservation     sum of picked lines across all pick tours == the
+                          invoice-stream line count (nothing lost between
+                          stage 0 and stage 3).
+(g) same-invoice eval     the three slotting variants are evaluated on the
+                          IDENTICAL invoice set: same invoice count and same
+                          line count across random / abc / optimal.
+(h) provenance audit      the travel numbers must carry synthetic-assigned
+                          provenance (the geometry is invented) while the
+                          demand/velocity inputs stay labelled real — the
+                          ledger is checked tag by tag.
+
 On the committed fixture, identity (a) compares against the value recorded in
 tests/fixtures/expected.json at fixture-generation time (the full-data
 constant is only reachable with the real dataset on disk).
@@ -41,8 +56,10 @@ from chain.contracts import (
     InvoiceStream,
     LedgerEntry,
     Provenance,
+    ReplenishmentPlan,
     WeeklyDemand,
 )
+from chain.warehouse import VARIANTS, SlottingComparison, WarehouseResult
 
 # Published by my retail-analytics-real repo (README: "GBP 19,643,862" of
 # revenue analyzed; exact pipeline value 19,643,861.62). Identity (a) target.
@@ -161,6 +178,65 @@ def register_stage1(ledger: Ledger, forecast: DemandForecast) -> None:
     )
 
 
+def register_stage2(ledger: Ledger, plan: ReplenishmentPlan) -> None:
+    ledger.register(
+        "inventory/plan_skus",
+        float(plan.plan["StockCode"].nunique()) if len(plan.plan) else 0.0,
+        "skus",
+        plan.provenance,
+        "SKUs with a replenishment plan",
+    )
+    ledger.register(
+        "inventory/safety_stock_units",
+        float(plan.plan["SafetyStock"].sum()) if len(plan.plan) else 0.0,
+        "units",
+        plan.provenance,
+        "total safety stock (stands on synthetic lead times)",
+    )
+
+
+def register_stage3(ledger: Ledger, result: WarehouseResult) -> None:
+    """Stage 3 registers travel per variant (synthetic-capped) and its real inputs."""
+    comparison = result.comparison
+    ledger.register(
+        "warehouse/velocity_lines",
+        float(comparison.velocity.sum()),
+        "lines",
+        comparison.velocity_provenance,
+        "pick velocity input: invoice lines per SKU, summed (real demand)",
+    )
+    ledger.register(
+        "warehouse/picked_lines_total",
+        float(result.workload.pick_lists["Lines"].sum()),
+        "lines",
+        result.workload.provenance,
+        "lines picked across all pick tours (deployed variant)",
+    )
+    for variant in VARIANTS:
+        df = comparison.pick_lists[variant]
+        ledger.register(
+            f"warehouse/travel_mean_{variant}",
+            comparison.mean_travel(variant),
+            "m/invoice",
+            comparison.provenance,
+            f"mean pick travel per real invoice, {variant} slotting (synthetic geometry)",
+        )
+        ledger.register(
+            f"warehouse/invoices_{variant}",
+            float(df["Invoice"].nunique()),
+            "invoices",
+            comparison.provenance,
+            f"invoices evaluated under {variant} slotting",
+        )
+        ledger.register(
+            f"warehouse/lines_{variant}",
+            float(df["Lines"].sum()),
+            "lines",
+            comparison.provenance,
+            f"lines picked under {variant} slotting",
+        )
+
+
 def check_revenue_identity(
     ledger: Ledger, expected_gbp: float = PUBLISHED_REVENUE_GBP
 ) -> CheckResult:
@@ -235,6 +311,107 @@ def run_phase1_checks(
         check_demand_conservation(ledger),
         check_line_conservation(ledger),
         check_forecast_coverage(forecast, demand),
+    ]
+
+
+def check_replenishment_coverage(plan: ReplenishmentPlan, forecast: DemandForecast) -> CheckResult:
+    """(e) plan SKUs == forecast SKUs, both directions (no orphans, no gaps)."""
+    plan_skus = set(plan.plan["StockCode"]) if len(plan.plan) else set()
+    fc_skus = set(forecast.forecasts["StockCode"]) if len(forecast.forecasts) else set()
+    missing = fc_skus - plan_skus  # forecasted but not planned
+    orphans = plan_skus - fc_skus  # planned but never forecasted
+    return CheckResult(
+        name="(e) replenishment coverage",
+        lhs_label="planned SKUs",
+        lhs=float(len(plan_skus)),
+        rhs_label="forecasted SKUs",
+        rhs=float(len(fc_skus)),
+        tolerance=0.0,
+        passed=not missing and not orphans,
+        unit="skus",
+        note=(
+            f"missing: {sorted(missing)[:5] if missing else 'none'}; "
+            f"orphans: {sorted(orphans)[:5] if orphans else 'none'}"
+        ),
+    )
+
+
+def check_pick_conservation(ledger: Ledger) -> CheckResult:
+    """(f) nothing lost between stage 0 and stage 3: picked lines == stream lines."""
+    return ledger.check(
+        "(f) pick conservation",
+        "warehouse/picked_lines_total",
+        "invoice_stream/line_count",
+        tolerance=0.0,
+        note="pick-tour lines vs invoice-stream lines",
+    )
+
+
+def check_same_invoice_eval(comparison: SlottingComparison) -> CheckResult:
+    """(g) all three slottings were measured on the identical invoice set."""
+    inv_counts = {v: int(comparison.pick_lists[v]["Invoice"].nunique()) for v in VARIANTS}
+    line_counts = {v: int(comparison.pick_lists[v]["Lines"].sum()) for v in VARIANTS}
+    same_invoices = len(set(inv_counts.values())) == 1
+    same_lines = len(set(line_counts.values())) == 1
+    return CheckResult(
+        name="(g) same-invoice evaluation",
+        lhs_label="min lines across variants",
+        lhs=float(min(line_counts.values())),
+        rhs_label="max lines across variants",
+        rhs=float(max(line_counts.values())),
+        tolerance=0.0,
+        passed=same_invoices and same_lines,
+        unit="lines",
+        note=f"invoices per variant: {inv_counts}; lines per variant: {line_counts}",
+    )
+
+
+# Ledger keys identity (h) audits, with the tag each MUST carry.
+PROVENANCE_AUDIT: dict[str, Provenance] = {
+    "ingest/demand_units": Provenance.REAL,
+    "warehouse/velocity_lines": Provenance.REAL,
+    "warehouse/travel_mean_random": Provenance.SYNTHETIC_ASSIGNED,
+    "warehouse/travel_mean_abc": Provenance.SYNTHETIC_ASSIGNED,
+    "warehouse/travel_mean_optimal": Provenance.SYNTHETIC_ASSIGNED,
+    "inventory/safety_stock_units": Provenance.SYNTHETIC_ASSIGNED,
+}
+
+
+def check_provenance_audit(ledger: Ledger) -> CheckResult:
+    """(h) the labels are right: travel/stock synthetic-capped, demand inputs real."""
+    wrong = []
+    correct = 0
+    for key, required in PROVENANCE_AUDIT.items():
+        entry = ledger.entries.get(key)
+        if entry is not None and entry.provenance is required:
+            correct += 1
+        else:
+            got = entry.provenance.value if entry is not None else "MISSING"
+            wrong.append(f"{key}: {got} != {required.value}")
+    return CheckResult(
+        name="(h) provenance audit",
+        lhs_label="correctly labelled entries",
+        lhs=float(correct),
+        rhs_label="entries audited",
+        rhs=float(len(PROVENANCE_AUDIT)),
+        tolerance=0.0,
+        passed=not wrong,
+        unit="entries",
+        note="; ".join(wrong) if wrong else "travel synthetic-assigned, demand/velocity real",
+    )
+
+
+def run_phase2_checks(
+    ledger: Ledger,
+    plan: ReplenishmentPlan,
+    forecast: DemandForecast,
+    warehouse_result: WarehouseResult,
+) -> list[CheckResult]:
+    return [
+        check_replenishment_coverage(plan, forecast),
+        check_pick_conservation(ledger),
+        check_same_invoice_eval(warehouse_result.comparison),
+        check_provenance_audit(ledger),
     ]
 
 
