@@ -242,8 +242,43 @@ class WarehouseWorkload:
 
 
 # --------------------------------------------------------------------------- #
-# Stage 4 — transport  (PHASE 3 — contract declared now)
+# Stage 4 — physical fulfilment + transport  (PHASE 3)
 # --------------------------------------------------------------------------- #
+@dataclass
+class FulfilmentLog:
+    """Stage 4a output: the DES record of picking + packing the real invoice stream.
+
+    In:  :class:`WarehouseWorkload` pick lists (real invoices, synthetic
+         travel) + synthetic-assigned picker crew (count, speed) and carton
+         dimensions (phase 3, seeded and labelled).
+    Out: ``orders`` — per simulated invoice: arrival (real timestamp), start,
+         finish, PickMinutes, Lines, Units, Cartons, WeightKg.
+         ``per_day`` — per calendar day: orders completed, lines picked,
+         labour hours, cartons shipped. ``window_weeks`` — the simulated
+         week-end stamps (a labelled representative window, not all weeks).
+
+    Reconciliation ties it back: DES picked lines == stage-3 pick-list lines
+    for the window (identity i); cartons shipped == cartons packed (j).
+
+    Provenance: SYNTHETIC_ASSIGNED — real order stream and timestamps, but
+    throughput stands on invented pick times, crew size and carton dims.
+    """
+
+    orders: pd.DataFrame
+    per_day: pd.DataFrame
+    window_weeks: pd.DatetimeIndex
+    assumptions: dict[str, object]
+    provenance: Provenance = Provenance.SYNTHETIC_ASSIGNED
+
+    @property
+    def labour_hours(self) -> float:
+        return float(self.per_day["LabourHours"].sum())
+
+    @property
+    def cartons_shipped(self) -> int:
+        return int(self.per_day["Cartons"].sum())
+
+
 @dataclass
 class TransportPlan:
     """Stage 4 output: shipments consolidated and routed to customers.
