@@ -27,6 +27,13 @@ INTERIM_CSV = DATA_INTERIM / "combined_raw.csv.gz"
 FIXTURE_CSV = ROOT / "tests" / "fixtures" / "sample.csv"
 FIXTURE_EXPECTED = ROOT / "tests" / "fixtures" / "expected.json"
 
+ARTIFACTS_DIR = ROOT / "artifacts"
+ARTIFACT_JSON = ARTIFACTS_DIR / "full_run.json"
+
+DELIVERABLES_DIR = ROOT / "deliverables"
+DELIVERABLE_PDF = DELIVERABLES_DIR / "chain_report.pdf"
+DELIVERABLE_XLSX = DELIVERABLES_DIR / "chain_ledger.xlsx"
+
 
 def find_raw_xlsx() -> Path | None:
     """First existing raw-workbook location, or None if neither exists."""

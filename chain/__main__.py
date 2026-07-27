@@ -12,7 +12,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
+from chain import (
+    artifact as artifact_mod,
+)
 from chain import (
     costing,
     deliver,
@@ -37,7 +41,11 @@ def _rule(char: str = "-") -> None:
     print(char * 72)
 
 
-def run_report(fixture: bool = False, n_skus: int | None = None) -> bool:
+def run_report(
+    fixture: bool = False,
+    n_skus: int | None = None,
+    artifact_path: Path | None = None,
+) -> bool:
     tag_real = Provenance.REAL.tag()
     tag_derived = Provenance.DERIVED.tag()
     tag_synth = Provenance.SYNTHETIC_ASSIGNED.tag()
@@ -294,6 +302,27 @@ def run_report(fixture: bool = False, n_skus: int | None = None) -> bool:
     verdict = "ALL IDENTITY CHECKS PASSED" if all_passed else "IDENTITY CHECK FAILURE"
     print(f"result: {verdict} ({sum(c.passed for c in checks)}/{len(checks)})")
     _rule()
+
+    if artifact_path is not None:
+        bundle = artifact_mod.build(
+            source="fixture" if fixture else "full",
+            raw_rows=len(raw),
+            cleaned=cleaned,
+            demand=demand,
+            stream=stream,
+            fc=fc,
+            layers=layers,
+            plan=plan,
+            wh=wh,
+            ful=ful,
+            dl=dl,
+            cs=cs,
+            ledger=ledger,
+            checks=checks,
+        )
+        saved = artifact_mod.save(bundle, artifact_path)
+        print(f"artifact saved: {saved} ({saved.stat().st_size:,} bytes, "
+              f"schema {artifact_mod.SCHEMA_VERSION})")
     return all_passed
 
 
@@ -303,11 +332,36 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--report", action="store_true", help="run stages 0-5 + reconciliation")
     parser.add_argument("--fixture", action="store_true", help="use the committed fixture (CI)")
     parser.add_argument("--skus", type=int, default=None, help="override tracked-SKU count")
+    parser.add_argument(
+        "--save-artifact",
+        action="store_true",
+        help="serialize the run to a deterministic JSON artifact after the report",
+    )
+    parser.add_argument(
+        "--artifact-path",
+        type=Path,
+        default=None,
+        help=f"artifact location (default {paths.ARTIFACT_JSON})",
+    )
+    parser.add_argument(
+        "--deliverables",
+        action="store_true",
+        help="build the CHAIN REPORT PDF + Excel LEDGER from the saved artifact (no recompute)",
+    )
     args = parser.parse_args(argv)
+
+    if args.deliverables:
+        from chain import exports
+
+        return exports.main(artifact_path=args.artifact_path or paths.ARTIFACT_JSON)
+
     if not args.report:
         parser.print_help()
         return 0
-    ok = run_report(fixture=args.fixture, n_skus=args.skus)
+    artifact_path = None
+    if args.save_artifact or args.artifact_path is not None:
+        artifact_path = args.artifact_path or paths.ARTIFACT_JSON
+    ok = run_report(fixture=args.fixture, n_skus=args.skus, artifact_path=artifact_path)
     return 0 if ok else 1
 
 
