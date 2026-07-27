@@ -93,6 +93,12 @@ def _page_cover(pdf: PdfPages, art: dict[str, Any], stale: list[str]) -> None:
 
     ingest = artifact_mod.stage_by_name(art, "ingest")["detail"]
     ful = artifact_mod.stage_by_name(art, "fulfilment (DES)")["detail"]
+    tr = artifact_mod.stage_by_name(art, "transport (CVRP)")["detail"]
+    run_note = (
+        "the committed receipt of one measured ~51-minute full run"
+        if art["source"] == "full"
+        else "a fixture-mode run receipt (CI path)"
+    )
     story = (
         f"The UCI Online Retail II transactions ({ingest['raw_rows']:,} raw rows, "
         f"{ingest['weeks']} weeks, {ingest['tracked_skus']:,} tracked SKUs) flow through\n"
@@ -100,10 +106,10 @@ def _page_cover(pdf: PdfPages, art: dict[str, Any], stale: list[str]) -> None:
         "A reconciliation ledger (stage 6) machine-checks identities at every seam: two numbers,\n"
         "computed by independent code paths, must agree - to the penny where pennies exist.\n\n"
         f"This report is generated from the saved run artifact ({art['source']} run, schema "
-        f"{art['schema_version']}) - the committed receipt\nof one measured ~51-minute run "
-        f"(48 CVRP instances); stages 4-5 run on the same {ful['window_weeks']}-week "
-        f"representative window\n({ful['window_start']} .. {ful['window_end']}), stated on "
-        "every window identity. Nothing here is recomputed."
+        f"{art['schema_version']}) - {run_note}\n({tr['delivery_days']} per-day CVRP instances); "
+        f"stages 4-5 run on the same {ful['window_weeks']}-week representative window\n"
+        f"({ful['window_start']} .. {ful['window_end']}), stated on every window identity. "
+        "Nothing here is recomputed."
     )
     ax.text(0.05, 0.74, story, fontsize = 10.5, color=INK, va="top", linespacing=1.55)
 
