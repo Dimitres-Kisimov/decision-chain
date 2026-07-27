@@ -13,6 +13,20 @@ warehouse -> transport -> costing, and a **reconciliation ledger** (stage 6) ass
 in pytest-able identity checks that print both numbers, that no stage drifted from the
 one upstream. The reconciliation harness is not scaffolding — it is the product.
 
+**The finished system (phases 1-4, all done).** One measured full run — 51 minutes,
+48 per-day CVRPs — proves the chain closes: **all 13 cross-stage identities PASS**,
+including cleaned revenue reproduced across two repositories *to the penny*
+(GBP 19,643,861.62) and the ledger's window revenue equal to the cleaned data's,
+again to the penny. The honest findings are part of the product: on lumpy demand
+nothing beats the naive walk; the exact slotting optimum is worth 1.6% over classic
+ABC; the metaheuristic router beats the 1964 Clarke-Wright construction by only
+0.2% on this geography and loses 19 of 48 days. The run is serialized to a committed
+**artifact** (`artifacts/full_run.json`), and the product layer reads it instead of
+recomputing: the **CHAIN DASHBOARD** (Flask, offline assets) renders the stage flow,
+the 13-identity reconciliation panel, the boundary map and every comparison; the
+**deliverables** (`chain_report.pdf` + `chain_ledger.xlsx`) regenerate from the same
+artifact byte-for-byte.
+
 ## The boundary: real vs synthetic-assigned
 
 Honesty is the point of this portfolio, so the boundary is declared up front and never
@@ -262,6 +276,58 @@ Each identity has a deliberate-corruption FAIL path in the tests (a lost pick,
 a phantom carton, a route node deleted from a real CVRP route, a one-cent
 total drift, a one-penny revenue drift).
 
+## Phase 4 — the product layer (artifact, dashboard, deliverables)
+
+The full report is measured, not cheap: ~51 minutes end to end (48 per-day CVRP
+solves at the swept deterministic budget). Phase 4 therefore splits *measuring*
+from *presenting*:
+
+**Run artifact** (`chain/artifact.py`). `python -m chain --report --save-artifact`
+serializes the whole run — stage headline summaries, the full reconciliation
+ledger, all 13 identity results with both sides, the cost-to-serve lines, the
+slotting and routing comparisons, provenance tag on every entry — to
+`artifacts/full_run.json`: deterministic (sorted keys, no wall-clock, ASCII;
+same code + same data -> byte-identical JSON), versioned (`schema_version`),
+and stamped with a sha256 **code fingerprint** of every `chain/*.py` source
+file. The artifact of the measured full run is committed — it is the
+reproducible receipt of every number in this README. If any chain source
+changes after the save, every consumer flags the artifact as **STALE** and
+says how to regenerate it.
+
+**CHAIN DASHBOARD** (`app.py` + `templates/` + `static/`, Flask, port 5077,
+offline assets only — no CDNs, guarded by a test). Boots in seconds from the
+artifact, recomputes nothing:
+
+- **stage flow** — the 7 stages left-to-right, each with its headline number and
+  provenance tag, color-coded (real = green, derived = blue, synthetic-assigned = amber);
+- **reconciliation panel** (the hero): all 13 identities, both numbers side by
+  side, tolerance, PASS badges;
+- **boundary map** — the real-vs-assigned table above, rendered;
+- the **cost-to-serve ledger** with provenance tags, the **slotting comparison**
+  (hand-built bars), **CVRP vs Clarke-Wright per delivery day** (hand-built SVG
+  line chart), and the **forecast class winners**;
+- `/api/health` plus JSON endpoints (`/api/identities`, `/api/ledger`,
+  `/api/stages`, ...) reading the same artifact.
+
+**Executive deliverables** (`chain/exports.py`). `python -m chain --deliverables`
+builds, from the artifact alone: the **CHAIN REPORT** PDF (cover with the
+one-dataset-through-everything story and the boundary statement, the pipeline
+diagram in provenance colors, the identities table, the slotting/routing
+comparisons, the cost-to-serve + reconciliation ledgers) and the **LEDGER
+workbook** (`Stages`, `Identities`, `CostToServe`, `SlottingComparison`,
+`Ledger`, `Assumptions` sheets). Metadata timestamps are pinned, so
+regenerating from the same artifact is **byte-identical** — asserted by tests.
+
+### Seeing it
+
+No captures are committed (the license is portfolio-review only and the views
+regenerate in seconds): run `python app.py` and open `http://127.0.0.1:5077`
+for the stage flow + identity board, or `python -m chain --deliverables` and
+open `deliverables/chain_report.pdf` for the same views in hand-off form.
+Headless proof that the views render lives in the test suite
+(`tests/test_app.py` asserts the DOM contains all 13 identity rows with PASS
+badges and the three provenance color classes).
+
 ## How to run
 
 ```bash
@@ -271,12 +337,24 @@ pip install -r requirements.txt
 # directory (chain/paths.py finds its data/raw/ automatically), or:
 python scripts/download_data.py
 
-python -m chain --report              # full dataset: stages 0-5 + reconciliation
-python -m chain --report --fixture    # committed real-row fixture (CI path, no download)
+# 1) measure: the full report (slow, ~51 min: 48 CVRPs) + the run artifact
+python -m chain --report --save-artifact
+#    (or the fast CI path: python -m chain --report --fixture)
+
+# 2) browse: the CHAIN DASHBOARD reads the artifact, recomputes nothing
+python app.py                         # http://127.0.0.1:5077 (CHAIN_PORT overrides)
+
+# 3) hand off: executive deliverables from the same artifact
+python -m chain --deliverables        # deliverables/chain_report.pdf + chain_ledger.xlsx
 
 ruff check .   # lint gate
 pytest -q      # fixture-based tests; full-data tests skip without raw data
 ```
+
+The committed `artifacts/full_run.json` already contains the measured full run,
+so steps 2-3 work immediately after `pip install` — step 1 is only needed to
+re-measure (and the dashboard/deliverables will tell you if the code has
+drifted from the committed artifact).
 
 Runtime note: the full-dataset report runs 48 per-day CVRPs at the swept
 solution limit (1000) — measured 51 minutes end to end on the reference
@@ -299,8 +377,11 @@ The dataset itself is not redistributed (CC BY 4.0, see [CREDITS.md](CREDITS.md)
   geography; the cost-to-serve ledger with provenance on every line and no
   profit claims; identities i-m close the window loop — the ledger's revenue is
   the cleaned data's revenue, to the penny.
-- [ ] **Phase 4 — dashboard + deliverables**: the report as a browsable artifact
-  (charts, the ledger, the identity board) and the packaged hand-off.
+- [x] **Phase 4 — the product layer** (done): the deterministic, committed run
+  artifact with code-fingerprint staleness detection; the offline Flask CHAIN
+  DASHBOARD (stage flow, the 13-identity reconciliation panel, boundary map,
+  ledgers and comparisons); byte-reproducible executive deliverables (CHAIN
+  REPORT PDF + LEDGER workbook) built from the artifact, never recomputed.
 
 ## Docs
 

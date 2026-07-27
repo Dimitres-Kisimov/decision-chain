@@ -97,6 +97,30 @@ loses 19 of them) — measured at a deterministic, swept solution budget. A
 routing pitch promising double-digit savings here would be selling the
 geography, not the optimizer; the honest table says so.
 
+## The hand-off: from a 51-minute run to a receipt anyone can open
+
+A reconciliation harness that only a developer can run is a demo, not a
+product. Phase 4 closes that gap. The measured full run — 51 minutes, 48
+per-day CVRP solves — is serialized once into a **committed run artifact**
+(`artifacts/full_run.json`): every stage's headline numbers, the full ledger,
+all 13 identity results with both sides printed, provenance on every entry,
+and a code fingerprint that makes the artifact self-aware of staleness. From
+that one receipt:
+
+- the **CHAIN DASHBOARD** gives an auditor the identity board — 13 PASS
+  badges with the two numbers behind each one — plus the stage flow with its
+  real/derived/synthetic color code and the boundary map, in a browser,
+  offline, in seconds;
+- the **CHAIN REPORT** (PDF) and the **LEDGER workbook** (Excel) give an
+  executive the same numbers in hand-off form — and regenerate byte-for-byte
+  from the same artifact, so "which version of the deck is this?" has a
+  machine answer.
+
+Nothing in the product layer recomputes anything: dashboard, PDF and workbook
+all quote the one measured run. That is the same discipline the identities
+enforce inside the chain, applied to the reporting seam — the last seam,
+where most decision chains quietly fork into slideware.
+
 ## Honesty as a design constraint
 
 The chain only proves something if the boundary between data and invention is
