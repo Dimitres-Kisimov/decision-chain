@@ -62,11 +62,14 @@ positively.
 | ingest -> warehouse (P2, done) | lines picked across all tours == invoice-stream lines (256,787 == 256,787) | labor planned on a different order count than billed |
 | warehouse evaluation (P2, done) | all slotting variants measured on the identical invoice set | comparing layouts on cherry-picked order samples |
 | provenance (P2, done) | travel numbers labelled synthetic-assigned, demand/velocity labelled real | invented geometry quietly presented as data |
-| chain -> costing (P3+) | end-of-chain revenue == start-of-chain revenue | cost-to-serve allocated over the wrong base |
+| warehouse -> fulfilment (P3, done) | DES picked lines == pick-list lines for the simulated window | simulating throughput on orders nobody actually placed |
+| fulfilment -> transport (P3, done) | routed drops (from the route structures) == shipped orders | trucks planned for a different order count than the warehouse shipped |
+| costing internal (P3, done) | ledger total == sum of its cost lines, to the cent | a summary total that quietly drifts from its own detail |
+| chain -> costing (P3, done) | ledger window revenue == cleaned-data revenue, same window, to the penny | cost-to-serve allocated over the wrong revenue base |
 
-Phases 1-2 implement the first six; identities a-h all PASS on the full
-dataset. Later phases extend the same ledger through transport and costing —
-every new stage arrives with its conservation identities, or it does not merge.
+Phases 1-3 implement all of these; identities a-m (13 checks) all PASS on the
+full dataset. Every new stage arrived with its conservation identities, or it
+did not merge.
 
 Phase 2 also puts a first number on two classic seam decisions, with the
 boundary declared: slotting the warehouse by *real* pick velocity instead of
@@ -76,6 +79,23 @@ inside an *invented*, labelled geometry, so the % is the claim, not the
 metres. And the safety-stock table prices forecast quality directly: the
 erratic class carries 3.02 weeks of demand as buffer and lumpy 2.30 vs 1.70
 for smooth — the measured cost of unforecastability at a 95% service target.
+
+Phase 3 closes the physical loop on a representative 8-week peak window
+(stated, not hidden): the real invoice stream is picked through the deployed
+slotting by a discrete-event simulation, packed into cartons, routed to
+seeded synthetic customer coordinates, and costed — labour, transport,
+holding, facility — against the real revenue of the same window, with the
+split between real and invented inputs printed on every ledger line. The
+deliverable is the *shape* of cost-to-serve under labelled assumptions, and
+deliberately NOT a margin claim: every rate is invented, and the ledger says
+so line by line.
+
+Phase 3 also delivers a negative result worth having: on the seeded
+geography, OR-Tools' guided local search beats the 1964 Clarke-Wright
+construction by only 0.2% of total km over the 48 routed delivery days (and
+loses 19 of them) — measured at a deterministic, swept solution budget. A
+routing pitch promising double-digit savings here would be selling the
+geography, not the optimizer; the honest table says so.
 
 ## Honesty as a design constraint
 

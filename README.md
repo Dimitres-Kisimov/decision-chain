@@ -29,8 +29,9 @@ of its inputs, and reports must print the tag.
 | SKU dimensions / weights | **SYNTHETIC-ASSIGNED** (seeded, labelled) | **phase 2 (done)** — description-keyword size classes |
 | Supplier lead times | **SYNTHETIC-ASSIGNED** (seeded, labelled) | **phase 2 (done)** — per demand class + jitter |
 | Warehouse geometry, slotting | **SYNTHETIC-ASSIGNED** (seeded, labelled) | **phase 2 (done)** — 8 aisles x 25 bays, rectilinear |
-| Customer geography (within real countries) | **SYNTHETIC-ASSIGNED** (seeded, labelled) | phase 3+ |
-| Cost rates (pick, km, holding) | **SYNTHETIC-ASSIGNED** (seeded, labelled) | phase 3/4+ |
+| Customer geography (one 2D plane; the real country sets the distance band only) | **SYNTHETIC-ASSIGNED** (seeded, labelled) | **phase 3 (done)** — per-customer digest-seeded coordinates |
+| Picker crew, carton dims, vehicle capacity | **SYNTHETIC-ASSIGNED** (labelled) | **phase 3 (done)** — 4 pickers, 60x40x40cm / 20kg cartons, 80-carton vans |
+| Cost rates (labour, km, holding, facility) | **SYNTHETIC-ASSIGNED** (labelled) | **phase 3 (done)** — printed on every ledger line |
 
 And the house standard on models: results are measured out-of-sample, and when a simple
 baseline beats the fancier model on real data, the baseline wins the report.
@@ -46,9 +47,9 @@ later phases implement against them:
 | 1 forecast | `WeeklyDemand` | `DemandForecast` (units/week + sigma per SKU) | **1 (done)** |
 | 2 inventory | `DemandForecast` | `ReplenishmentPlan` | **2 (done)** |
 | 3 warehouse | `InvoiceStream` + plan | `WarehouseWorkload` (pick lists) | **2 (done)** |
-| 4 transport | `WarehouseWorkload` | `TransportPlan` | 3 |
-| 5 costing | all upstream | `CostToServe` | 3/4 |
-| 6 reconcile | ledger entries from 0-5 | identity checks (PASS/FAIL, both numbers) | **1-2 (a-h done)** |
+| 4 transport | `WarehouseWorkload` | `FulfilmentLog` (DES) + `TransportPlan` (CVRP) | **3 (done)** |
+| 5 costing | all upstream | `CostToServe` (the provenance-tagged ledger) | **3 (done)** |
+| 6 reconcile | ledger entries from 0-5 | identity checks (PASS/FAIL, both numbers) | **1-3 (a-m done)** |
 
 ## Phase 1 — what is measured (real data, full run)
 
@@ -157,6 +158,110 @@ the ordering that actually holds, not a hoped-for one.
 | g | identical invoice set across all three slottings | 256,787 | 256,787 | **PASS** |
 | h | provenance audit (travel synthetic, demand/velocity real) | 6 | 6 | **PASS** |
 
+## Phase 3 — what is measured (real data, full run, 2026-07-27)
+
+Phase 3 makes the chain physical on a **representative 8-week window** — the
+contiguous span with the most invoice lines (2010-10-24 .. 2010-12-12, which by
+construction contains the peak picking week). Simulating all 104 weeks through
+the per-day CVRP stage is slow, so stages 4-5 and every window identity run on
+this SAME window, and every output says so. Real WHAT/WHEN/WHO; synthetic HOW:
+crew size, carton dims, coordinates and every cost rate are invented and
+labelled.
+
+### Stage 4a — fulfilment DES (heapq, no SimPy; adapted from logistics-digital-twin)
+
+The real invoice stream of the window arrives at its real timestamps and is
+picked through the **deployed stage-3 slotting** (assignment-optimal — the
+layout a planner would run, and the one the `WarehouseWorkload` contract
+carries) by 4 synthetic pickers, then packed by an FFD volume+weight carton
+fill (the 1D relaxation, labelled) using the seeded SKU dims:
+
+| measure (window) | value |
+|---|---:|
+| orders shipped | 4,151 across 48 working days (86.5/day) |
+| lines picked | 33,312 (identity (i) pins this to the stream) |
+| picking labour | 270.4 h (~5.6 h/day — 18% of a 4-picker 8h-day crew; utilisation reported, not hidden) |
+| mean order wait | 0.0 min (the crew is over-provisioned even in the peak; measured, not tuned away) |
+| cartons shipped | 70,820 (FFD, 60x40x40 cm / 20 kg; identity (j)) |
+
+### Stage 4b — transport: CVRP vs Clarke-Wright, measured honestly
+
+Every shipped order becomes a drop on its ship day at a digest-seeded
+coordinate (UK band 5-120 km, export band 150-300 km — one 2D plane, INVENTED
+geography, the km are synthetic-assigned). Per delivery day, two solvers on
+identical instances: Clarke-Wright (1964) parallel savings, and OR-Tools
+CVRP (PATH_CHEAPEST_ARC + guided local search) with a **deterministic
+solution-limit stop rule** — not wall-clock, so the same run gives the same
+km on any machine (both adapted from my route-optimizer repo).
+
+The solution limit was chosen at the measured knee of a sweep on a
+representative 8-day subset of the window (622 orders):
+
+| solution limit | CVRP vs CW | per-day record (8 days) | sweep runtime |
+|---:|---:|---|---:|
+| 100 | +4.66% (loses) | 0 wins / 8 losses | 7 s |
+| 300 | +0.41% (near-tie) | 5 wins / 3 losses | 87 s |
+| **1000 (chosen)** | **-1.08% (wins)** | 6 wins / 2 losses | 350 s |
+
+The sweep was stopped after the 1000-solution point: the gain per extra
+solution was already collapsing (-4.25 pp from 100 to 300, -1.49 pp from 300
+to 1000) while runtime grew superlinearly; larger budgets were not measured
+to completion and no claim is made about them.
+
+The honest reading: the classic 1964 construction is a STRONG baseline on
+this geography — many small same-band drops leave it little to lose — and the
+metaheuristic only overtakes it with a real search budget. Full window, all
+48 delivery days, at the chosen limit:
+
+| method | total km | vehicle-days | delta |
+|---|---:|---:|---:|
+| Clarke-Wright savings | 253,201.2 | 937 | baseline |
+| OR-Tools CVRP (limit 1000) | 252,713.5 | 924 | **-0.2%** |
+
+Per-day record: CVRP wins 29, ties 0, loses 19 of the 48 days. On the full
+window the metaheuristic's edge nearly vanishes (bigger peak-day instances
+than the sweep subset), and the routing saving over the classic baseline is
+**modest on this geography** — reported as measured, not sold as savings.
+Both totals include the identical peeled full-vehicle direct trips, so the
+comparison is fair; determinism means these km reproduce exactly on any
+machine.
+
+### Stage 5 — cost-to-serve (NO profit claims)
+
+Every rate is INVENTED and labelled; the table is a cost-structure view under
+stated assumptions, not a margin statement. Verbatim from the full-run report:
+
+```
+item                              GBP      provenance            basis
+labour                       3,920.27 GBP  [synthetic-assigned]  270.4 DES hours x 14.50/h (rate INVENTED)
+transport                  214,806.49 GBP  [synthetic-assigned]  252,713.5 CVRP km x 0.85/km (km + rate INVENTED)
+holding                     14,700.40 GBP  [synthetic-assigned]  91,878 SS units x 0.02/unit-week x 8w
+facility                    20,000.00 GBP  [synthetic-assigned]  2,500/week fixed x 8w (INVENTED)
+total cost                 253,427.16 GBP  [synthetic-assigned]  sum of the four lines above (identity (l))
+window revenue           1,047,042.41 GBP  [real]                real revenue of the same 8-week window (identity (m))
+```
+
+Modelled cost equals 24.2% of window revenue. Split of inputs, explicit:
+REAL — order composition, timestamps, window revenue; SYNTHETIC-ASSIGNED —
+every rate, hour, km and safety-stock unit; nothing in the ledger is stronger
+than its weakest input (transport dominates the cost side, and its km stand
+entirely on invented coordinates — which is exactly why the table makes no
+profit claim).
+
+### Identity checks i-m (full dataset, all PASS — a-h unchanged)
+
+| # | identity | lhs | rhs | result |
+|---|---|---:|---:|---|
+| i | DES picked lines == window stream lines | 33,312 | 33,312 | **PASS** |
+| j | cartons shipped == cartons packed | 70,820 | 70,820 | **PASS** |
+| k | routed drops (route structures) == shipped orders | 4,151 | 4,151 | **PASS** |
+| l | ledger total == sum of cost lines (to the cent) | 253,427.16 | 253,427.16 | **PASS** |
+| m | ledger window revenue == cleaned revenue, same window (to the penny) | 1,047,042.41 | 1,047,042.41 | **PASS** |
+
+Each identity has a deliberate-corruption FAIL path in the tests (a lost pick,
+a phantom carton, a route node deleted from a real CVRP route, a one-cent
+total drift, a one-penny revenue drift).
+
 ## How to run
 
 ```bash
@@ -166,12 +271,17 @@ pip install -r requirements.txt
 # directory (chain/paths.py finds its data/raw/ automatically), or:
 python scripts/download_data.py
 
-python -m chain --report              # full dataset: stages 0-3 + reconciliation
+python -m chain --report              # full dataset: stages 0-5 + reconciliation
 python -m chain --report --fixture    # committed real-row fixture (CI path, no download)
 
 ruff check .   # lint gate
 pytest -q      # fixture-based tests; full-data tests skip without raw data
 ```
+
+Runtime note: the full-dataset report runs 48 per-day CVRPs at the swept
+solution limit (1000) — measured 51 minutes end to end on the reference
+machine; the fixture path stays fast. The budget is a solution count, not a
+wall clock, so the km (not the minutes) are identical on any machine.
 
 The dataset itself is not redistributed (CC BY 4.0, see [CREDITS.md](CREDITS.md));
 `data/` is git-ignored and the committed fixture is a small, seeded sample of real rows.
@@ -182,12 +292,15 @@ The dataset itself is not redistributed (CC BY 4.0, see [CREDITS.md](CREDITS.md)
   `DemandForecast` on labelled synthetic lead times; real invoices picked as tours in
   the seeded synthetic warehouse, three slottings compared honestly; identities e-h
   (coverage, pick conservation, same-invoice evaluation, provenance audit).
-- [ ] **Phase 3 — transport + geography**: shipment consolidation and routing on real
-  destination countries with seeded coordinates; identities: shipped == picked, every
-  shipment maps to a real invoice.
-- [ ] **Phase 4 — costing + the closing of the loop**: cost-to-serve per SKU/invoice on
-  labelled synthetic rates; the final identity closes the chain — end-of-chain revenue
-  equals the stage-0 revenue, to the penny.
+- [x] **Phase 3 — physical stages + the full ledger** (done): fulfilment DES of the
+  real invoice stream through the deployed slotting (representative 8-week peak
+  window, stated); FFD carton packing; per-day CVRP at a swept deterministic
+  solution limit vs an honest Clarke-Wright baseline on seeded synthetic
+  geography; the cost-to-serve ledger with provenance on every line and no
+  profit claims; identities i-m close the window loop — the ledger's revenue is
+  the cleaned data's revenue, to the penny.
+- [ ] **Phase 4 — dashboard + deliverables**: the report as a browsable artifact
+  (charts, the ledger, the identity board) and the packaged hand-off.
 
 ## Docs
 
