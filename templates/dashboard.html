@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>decision-chain &middot; CHAIN DASHBOARD</title>
+  <meta name="description" content="One real dataset through the whole distributor decision chain, with machine-checked reconciliation at every seam." />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d9e6f'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EDC%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div>
+      <h1>decision-chain</h1>
+      <div class="crumb">
+        one real dataset through ingest &rarr; forecast &rarr; inventory &rarr; warehouse &rarr;
+        fulfilment &rarr; transport &rarr; costing &mdash; reconciled at every seam
+      </div>
+    </div>
+    <div class="masthead-right">
+      <span class="verdict {{ 'pass' if art.all_passed else 'fail' }}">
+        {{ art.identities_passed }}/{{ art.identities_total }} identities
+        {{ 'PASS' if art.all_passed else 'FAIL' }}
+      </span>
+      <span class="chip">source: {{ art.source }} run</span>
+      <span class="chip">schema {{ art.schema_version }}</span>
+      <button class="btn" id="themeToggle" type="button" title="Toggle theme">theme</button>
+    </div>
+  </header>
+
+  {% if stale_files %}
+  <div class="stale-banner" id="staleBanner">
+    <strong>STALE ARTIFACT:</strong> the code is newer than this artifact
+    ({{ stale_files|length }} changed file{{ 's' if stale_files|length != 1 }}:
+    {{ stale_files|join(', ') }}). Numbers shown are from the last saved run &mdash;
+    regenerate with <code>python -m chain --report --save-artifact</code>.
+  </div>
+  {% endif %}
+
+  <div class="legend">
+    <span class="prov prov-real">real</span> observed in the dataset
+    <span class="prov prov-derived">derived</span> computed from real inputs
+    <span class="prov prov-synth">synthetic-assigned</span> invented, seeded, labelled
+  </div>
+
+  <!-- ================= stage flow ================= -->
+  <section class="panel" id="sec-flow">
+    <h2>The chain &mdash; stage flow</h2>
+    <div class="flow">
+      {% for stage in stages %}
+      <div class="flow-stage">
+        <div class="stage-card {{ stage.provenance|provclass }}-border">
+          <div class="stage-name">{{ loop.index0 }} &middot; {{ stage.name }}</div>
+          <div class="stage-number">{{ stage.headline.value|num }}</div>
+          <div class="stage-label">{{ stage.headline.label }}</div>
+          <span class="prov {{ stage.provenance|provclass }}">{{ stage.provenance }}</span>
+        </div>
+      </div>
+      {% if not loop.last %}<div class="flow-arrow">&rarr;</div>{% endif %}
+      {% endfor %}
+    </div>
+    <p class="note">
+      {{ ingest.raw_rows|num }} raw rows &middot; {{ ingest.tracked_skus|num }} tracked SKUs
+      &middot; {{ ingest.weeks }} weeks ({{ ingest.week_start }} .. {{ ingest.week_end }})
+      &middot; stages 4&ndash;5 run on the same {{ fulfil.window_weeks }}-week representative
+      window ({{ fulfil.window_start }} .. {{ fulfil.window_end }}), stated on every window identity.
+    </p>
+  </section>
+
+  <!-- ================= reconciliation (hero) ================= -->
+  <section class="panel hero" id="sec-reconciliation">
+    <h2>Reconciliation &mdash; the {{ art.identities_total }} cross-stage identities</h2>
+    <p class="note">
+      Each identity compares two numbers computed by <em>independent code paths</em>
+      (often across stages, once across repositories). Both sides are shown &mdash; no
+      rounding tricks. This panel is the product.
+    </p>
+    <table class="identities">
+      <thead>
+        <tr><th>identity</th><th class="num">left side</th><th class="num">right side</th>
+            <th class="num">tolerance</th><th>unit</th><th>status</th></tr>
+      </thead>
+      <tbody>
+        {% for check in identities %}
+        <tr class="identity-row">
+          <td>
+            <div class="id-name">{{ check.name }}</div>
+            <div class="id-note">{{ check.note }}</div>
+          </td>
+          <td class="num">
+            <div class="id-val">{{ check.lhs|num(2) }}</div>
+            <div class="id-label">{{ check.lhs_label }}</div>
+          </td>
+          <td class="num">
+            <div class="id-val">{{ check.rhs|num(2) }}</div>
+            <div class="id-label">{{ check.rhs_label }}</div>
+          </td>
+          <td class="num">{{ check.tolerance }}</td>
+          <td>{{ check.unit }}</td>
+          <td><span class="badge {{ 'pass' if check.passed else 'fail' }}">
+            {{ 'PASS' if check.passed else 'FAIL' }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ================= boundary map ================= -->
+  <section class="panel" id="sec-boundary">
+    <h2>Boundary map &mdash; what is real vs assigned</h2>
+    <table class="boundary">
+      <thead><tr><th>quantity</th><th>provenance</th><th>note</th></tr></thead>
+      <tbody>
+        {% for row in boundary %}
+        <tr>
+          <td>{{ row.quantity }}</td>
+          <td><span class="prov {{ row.provenance|provclass }}">{{ row.provenance }}</span></td>
+          <td class="muted">{{ row.note }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <div class="grid-2">
+
+    <!-- ================= cost-to-serve ================= -->
+    <section class="panel" id="sec-costing">
+      <h2>Cost-to-serve ledger (window)</h2>
+      <p class="note">Cost-structure view, NOT a margin statement: every rate is invented and labelled.</p>
+      <table class="costing">
+        <thead><tr><th>item</th><th class="num">GBP</th><th>provenance</th><th>basis</th></tr></thead>
+        <tbody>
+          {% for line in costing.lines %}
+          <tr class="{{ 'total-row' if line.item == 'total cost' }}">
+            <td>{{ line.item }}</td>
+            <td class="num">{{ line.gbp|num(2) }}</td>
+            <td><span class="prov {{ line.provenance|provclass }}">{{ line.provenance }}</span></td>
+            <td class="muted small">{{ line.basis }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="note">Modelled cost equals {{ costing.cost_pct_of_revenue|num(1) }}% of window revenue
+        &mdash; under labelled assumptions.</p>
+    </section>
+
+    <!-- ================= slotting comparison ================= -->
+    <section class="panel" id="sec-slotting">
+      <h2>Slotting comparison</h2>
+      <p class="note">Three slottings, identical real invoice set (identity (g)); mean pick travel per invoice.</p>
+      <div class="bars">
+        {% for row in slotting %}
+        <div class="bar-row">
+          <div class="bar-label">{{ row.variant }}</div>
+          <div class="bar-track">
+            <div class="bar-fill {{ 'bar-best' if loop.last else '' }}" style="width: {{ row.bar_pct|num(1) }}%"></div>
+          </div>
+          <div class="bar-value">{{ row.mean_travel_m|num(1) }} m
+            {% if row.variant != 'random' %}<span class="muted">({{ row.delta_vs_random_pct|num(1) }}% vs random)</span>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="note">Known property, reported not hidden: with one distance per slot the
+        assignment optimum IS velocity-sorted placement; optimal only re-breaks velocity ties vs abc.</p>
+
+      <h2 class="mt">Routing &mdash; CVRP vs Clarke-Wright</h2>
+      <p class="note">{{ routing.delivery_days }} delivery days, identical peeled instances,
+        deterministic solution limit {{ routing.solution_limit }}.</p>
+      <svg class="chart" viewBox="0 0 {{ routing_chart.width|num(0) }} {{ (routing_chart.height + 30)|num(0) }}"
+           role="img" aria-label="CVRP vs Clarke-Wright km per delivery day">
+        <polyline points="{{ routing_chart.cw_points }}" class="line-cw" />
+        <polyline points="{{ routing_chart.cvrp_points }}" class="line-cvrp" />
+        <text x="0" y="{{ (routing_chart.height + 20)|num(0) }}" class="axis">{{ routing_chart.first_day }}</text>
+        <text x="{{ routing_chart.width|num(0) }}" y="{{ (routing_chart.height + 20)|num(0) }}" text-anchor="end" class="axis">{{ routing_chart.last_day }}</text>
+      </svg>
+      <div class="chart-legend">
+        <span class="key key-cvrp"></span> OR-Tools CVRP {{ routing.cvrp_km|num(1) }} km
+        <span class="key key-cw"></span> Clarke-Wright {{ routing.cw_km|num(1) }} km
+        <span class="muted">({{ routing.delta_vs_cw_pct|num(1) }}% vs CW; per-day record
+          {{ routing.record.wins }}W/{{ routing.record.ties }}T/{{ routing.record.losses }}L)</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= forecast winners ================= -->
+  <section class="panel" id="sec-forecast">
+    <h2>Forecast &mdash; per-class winners (rolling-origin CV, MASE)</h2>
+    <div class="winners">
+      {% for cls, rows in winners.items() %}
+      <div class="winner-card">
+        <div class="winner-class">{{ cls }}</div>
+        <table class="scoreboard">
+          {% for row in rows %}
+          <tr class="{{ 'winner-row' if row.winner }}">
+            <td>{{ row.model }}</td>
+            <td class="num">{{ row.mean_mase|num(3) }}</td>
+            <td>{% if row.winner %}<span class="badge pass">winner</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="note">Lower MASE is better; when naive wins on real data, naive wins the report.</p>
+  </section>
+
+  <footer class="foot">
+    artifact: <code>{{ artifact_path }}</code> &middot; schema {{ art.schema_version }}
+    &middot; synthetic seed {{ art.synthetic_seed }} &middot; offline assets only (no CDNs)
+  </footer>
+</div>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
