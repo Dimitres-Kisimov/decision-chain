@@ -15,7 +15,18 @@ import json
 import pandas as pd
 import pytest
 
-from chain import costing, deliver, fulfil, ingest, inventory, paths, synthetic, warehouse
+from chain import artifact as artifact_mod
+from chain import (
+    costing,
+    deliver,
+    fulfil,
+    ingest,
+    inventory,
+    paths,
+    reconcile,
+    synthetic,
+    warehouse,
+)
 from chain import forecast as forecast_stage
 from chain.contracts import (
     CleanedTransactions,
@@ -96,3 +107,53 @@ def stage5(stage0, stage4) -> DeliveryResult:
 def stage6(stage0, stage2, stage4, stage5) -> CostingResult:
     cleaned, demand, _ = stage0
     return costing.run(cleaned, demand.skus, stage2, stage4, stage5)
+
+
+@pytest.fixture(scope="session")
+def full_ledger_and_checks(stage0, stage1, stage2, stage3, stage4, stage5, stage6, expected):
+    """The complete stage-6 registration + all 13 identity checks (fixture data)."""
+    cleaned, demand, stream = stage0
+    ledger = reconcile.Ledger()
+    reconcile.register_stage0(ledger, cleaned, demand, stream)
+    reconcile.register_stage1(ledger, stage1)
+    reconcile.register_stage2(ledger, stage2)
+    reconcile.register_stage3(ledger, stage3)
+    reconcile.register_stage4(ledger, stream, stage4, stage5)
+    reconcile.register_stage5(ledger, stage6)
+    checks = reconcile.run_phase1_checks(ledger, stage1, demand, expected["cleaned_revenue_gbp"])
+    checks += reconcile.run_phase2_checks(ledger, stage2, stage1, stage3)
+    checks += reconcile.run_phase3_checks(ledger, cleaned, demand, stage4)
+    return ledger, checks
+
+
+@pytest.fixture(scope="session")
+def fixture_artifact(
+    raw_fixture, stage0, stage1, layers, stage2, stage3, stage4, stage5, stage6,
+    full_ledger_and_checks,
+) -> dict:
+    """A run artifact built from the fixture chain (what --save-artifact serializes)."""
+    cleaned, demand, stream = stage0
+    ledger, checks = full_ledger_and_checks
+    return artifact_mod.build(
+        source="fixture",
+        raw_rows=len(raw_fixture),
+        cleaned=cleaned,
+        demand=demand,
+        stream=stream,
+        fc=stage1,
+        layers=layers,
+        plan=stage2,
+        wh=stage3,
+        ful=stage4,
+        dl=stage5,
+        cs=stage6,
+        ledger=ledger,
+        checks=checks,
+    )
+
+
+@pytest.fixture(scope="session")
+def fixture_artifact_path(fixture_artifact, tmp_path_factory):
+    """The fixture artifact saved to disk (what the dashboard/exports consume)."""
+    path = tmp_path_factory.mktemp("artifact") / "fixture_run.json"
+    return artifact_mod.save(fixture_artifact, path)

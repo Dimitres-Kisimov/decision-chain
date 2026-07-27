@@ -1,8 +1,11 @@
-# CI runs lint + the fixture-based test suite.
+# CI runs lint + the fixture-based test suite + the phase-4 product layer.
 #
 # The full UCI dataset (~45 MB xlsx) is deliberately NOT downloaded in CI:
 # tests run on tests/fixtures/sample.csv (real rows committed to the repo);
-# full-dataset tests skip themselves when data/raw/ is absent.
+# full-dataset tests skip themselves when data/raw/ is absent. The phase-4
+# tests (artifact round-trip, dashboard endpoints, deliverables) build their
+# own fixture artifact in-session; the smoke steps below additionally
+# exercise the CLI end to end on the fixture path.
 name: ci
 
 on:
@@ -25,5 +28,10 @@ jobs:
         run: ruff check .
       - name: Tests (fixture-based, no dataset download)
         run: pytest -q
-      - name: Fixture-mode end-to-end report
-        run: python -m chain --report --fixture
+      - name: Fixture-mode end-to-end report + artifact
+        run: python -m chain --report --fixture --save-artifact --artifact-path artifacts/fixture_run.json
+      - name: Deliverables from the fixture artifact (PDF + Excel)
+        run: |
+          python -m chain --deliverables --artifact-path artifacts/fixture_run.json
+          test -s deliverables/chain_report.pdf
+          test -s deliverables/chain_ledger.xlsx
