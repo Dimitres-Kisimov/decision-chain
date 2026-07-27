@@ -1,0 +1,1661 @@
+{
+  "all_passed": true,
+  "boundary_map": [
+    {
+      "note": "UCI Online Retail II",
+      "provenance": "real",
+      "quantity": "Transactions, invoice composition"
+    },
+    {
+      "note": "lossless aggregation; identity (b)",
+      "provenance": "real",
+      "quantity": "Demand (weekly units per SKU)"
+    },
+    {
+      "note": "observed",
+      "provenance": "real",
+      "quantity": "Seasonality, returns"
+    },
+    {
+      "note": "rolling-origin CV on real demand",
+      "provenance": "derived",
+      "quantity": "Forecasts, uncertainty"
+    },
+    {
+      "note": "seeded description-keyword size classes",
+      "provenance": "synthetic-assigned",
+      "quantity": "SKU dimensions / weights"
+    },
+    {
+      "note": "seeded per demand class + jitter",
+      "provenance": "synthetic-assigned",
+      "quantity": "Supplier lead times"
+    },
+    {
+      "note": "8 aisles x 25 bays, rectilinear",
+      "provenance": "synthetic-assigned",
+      "quantity": "Warehouse geometry, slotting"
+    },
+    {
+      "note": "digest-seeded coordinates; real country sets the band only",
+      "provenance": "synthetic-assigned",
+      "quantity": "Customer geography"
+    },
+    {
+      "note": "4 pickers, 60x40x40cm/20kg cartons, 80-carton vans",
+      "provenance": "synthetic-assigned",
+      "quantity": "Picker crew, cartons, vehicles"
+    },
+    {
+      "note": "printed on every ledger line",
+      "provenance": "synthetic-assigned",
+      "quantity": "Cost rates (labour, km, holding, facility)"
+    }
+  ],
+  "code_fingerprint": {
+    "chain/__init__.py": "3af9abb93b3c9ab091aabf66be9d95eb8bb91a95e0fadf80cbcb96eead101b5e",
+    "chain/__main__.py": "2d947a12648b2b85b8b29c8e2bd7c1ca7f2d718127d14e0b8807a3553001011f",
+    "chain/artifact.py": "c479318db3dfa139707d72fd1a7cafb00caefa7c03a49f22dadb270102336450",
+    "chain/contracts.py": "81411e495df2d6f0a94085eb43630927c95d61cfa341767619f8dabdc31dfea3",
+    "chain/costing.py": "0134459b4094cafd14f5803d188d40705b06432a3b56e76b963fa6f01415b1d7",
+    "chain/deliver.py": "8a49e9f2b1be753d009929149a7f79a3a74fab199cb46f401b3c6748a877ab73",
+    "chain/exports.py": "768abd608e82498a4403fcbcd94025cb91cdb93d990010749cd3d1cf7b778d82",
+    "chain/forecast.py": "34de43dbbab128de8df467e17a7eab235dc92cbda00f163d83c6793ba2ab99c9",
+    "chain/fulfil.py": "e1732135a6b44ac5d84c442ade51ee519e538c4306747e6aed015b81a60719ab",
+    "chain/ingest.py": "c28e02b2388f3f7d1f64eec5b138ddcaad67d9535291f3d97cb72d7543781fc1",
+    "chain/inventory.py": "1f30fdffe297476f31c39bd476ce6eb83a313d4bffa9b950491433fe8fa6602a",
+    "chain/paths.py": "e2743abbe2277950a7be6fb094dd2b82b887cccd0c22ddd4628fd973c9d92e00",
+    "chain/reconcile.py": "b7ae01a419d625b10851ca905f8a3cb83a6cea7d82db58f2203e4e56fbb18693",
+    "chain/synthetic.py": "488d22b5de6a7e34382c8b2cbd69e3b69c62e23b13b68aae7ba04181fb60d068",
+    "chain/warehouse.py": "36a36946e9aee1cd4dbb210db4b665b9b9aeb659421a180a5bc79b500c8162c8"
+  },
+  "identities": [
+    {
+      "lhs": 19643861.62,
+      "lhs_label": "ingest/revenue_gbp",
+      "name": "(a) cross-repo revenue",
+      "note": "same pipeline, same raw file, same number",
+      "passed": true,
+      "rhs": 19643861.62,
+      "rhs_label": "published/revenue_gbp",
+      "tolerance": 0.005,
+      "unit": "GBP"
+    },
+    {
+      "lhs": 3361605.0,
+      "lhs_label": "ingest/demand_units",
+      "name": "(b) demand conservation",
+      "note": "weekly sum vs line-level sum, tracked SKUs, same window",
+      "passed": true,
+      "rhs": 3361605.0,
+      "rhs_label": "ingest/line_units",
+      "tolerance": 1e-06,
+      "unit": "units"
+    },
+    {
+      "lhs": 256787.0,
+      "lhs_label": "invoice_stream/line_count",
+      "name": "(c) line conservation",
+      "note": "pick-list source vs cleaned sales lines",
+      "passed": true,
+      "rhs": 256787.0,
+      "rhs_label": "ingest/line_count",
+      "tolerance": 0.0,
+      "unit": "lines"
+    },
+    {
+      "lhs": 185.0,
+      "lhs_label": "forecast SKUs known to demand",
+      "name": "(d) forecast coverage",
+      "note": "orphans: none",
+      "passed": true,
+      "rhs": 185.0,
+      "rhs_label": "forecast SKUs total",
+      "tolerance": 0.0,
+      "unit": "skus"
+    },
+    {
+      "lhs": 185.0,
+      "lhs_label": "planned SKUs",
+      "name": "(e) replenishment coverage",
+      "note": "missing: none; orphans: none",
+      "passed": true,
+      "rhs": 185.0,
+      "rhs_label": "forecasted SKUs",
+      "tolerance": 0.0,
+      "unit": "skus"
+    },
+    {
+      "lhs": 256787.0,
+      "lhs_label": "warehouse/picked_lines_total",
+      "name": "(f) pick conservation",
+      "note": "pick-tour lines vs invoice-stream lines",
+      "passed": true,
+      "rhs": 256787.0,
+      "rhs_label": "invoice_stream/line_count",
+      "tolerance": 0.0,
+      "unit": "lines"
+    },
+    {
+      "lhs": 256787.0,
+      "lhs_label": "min lines across variants",
+      "name": "(g) same-invoice evaluation",
+      "note": "invoices per variant: {'random': 33492, 'abc': 33492, 'optimal': 33492}; lines per variant: {'random': 256787, 'abc': 256787, 'optimal': 256787}",
+      "passed": true,
+      "rhs": 256787.0,
+      "rhs_label": "max lines across variants",
+      "tolerance": 0.0,
+      "unit": "lines"
+    },
+    {
+      "lhs": 6.0,
+      "lhs_label": "correctly labelled entries",
+      "name": "(h) provenance audit",
+      "note": "travel synthetic-assigned, demand/velocity real",
+      "passed": true,
+      "rhs": 6.0,
+      "rhs_label": "entries audited",
+      "tolerance": 0.0,
+      "unit": "entries"
+    },
+    {
+      "lhs": 33312.0,
+      "lhs_label": "fulfil/picked_lines",
+      "name": "(i) window pick conservation",
+      "note": "DES per-order log vs independent stream recount, same window",
+      "passed": true,
+      "rhs": 33312.0,
+      "rhs_label": "window/stream_lines",
+      "tolerance": 0.0,
+      "unit": "lines"
+    },
+    {
+      "lhs": 70820.0,
+      "lhs_label": "fulfil/cartons_shipped",
+      "name": "(j) carton conservation",
+      "note": "per-day aggregation vs per-order packing log",
+      "passed": true,
+      "rhs": 70820.0,
+      "rhs_label": "fulfil/cartons_packed",
+      "tolerance": 0.0,
+      "unit": "cartons"
+    },
+    {
+      "lhs": 4151.0,
+      "lhs_label": "transport/routed_drops",
+      "name": "(k) drop conservation",
+      "note": "CVRP nodes + peeled full loads vs shipped orders: none lost/duplicated",
+      "passed": true,
+      "rhs": 4151.0,
+      "rhs_label": "fulfil/orders",
+      "tolerance": 0.0,
+      "unit": "orders"
+    },
+    {
+      "lhs": 253427.16401240457,
+      "lhs_label": "costing/total_cost",
+      "name": "(l) ledger additivity",
+      "note": "summary total vs sum of the four cost lines, to the cent",
+      "passed": true,
+      "rhs": 253427.16401240457,
+      "rhs_label": "costing/component_sum",
+      "tolerance": 0.005,
+      "unit": "GBP"
+    },
+    {
+      "lhs": 1047042.4100000001,
+      "lhs_label": "costing/window_revenue",
+      "name": "(m) window revenue",
+      "note": "costing's filter vs ingest's filter, same window, to the penny",
+      "passed": true,
+      "rhs": 1047042.4099999999,
+      "rhs_label": "ingest/window_revenue",
+      "tolerance": 0.005,
+      "unit": "GBP"
+    }
+  ],
+  "identities_passed": 13,
+  "identities_total": 13,
+  "ledger": [
+    {
+      "key": "ingest/revenue_gbp",
+      "note": "cleaned gross product revenue, full pipeline",
+      "provenance": "real",
+      "unit": "GBP",
+      "value": 19643861.62
+    },
+    {
+      "key": "ingest/demand_units",
+      "note": "sum of weekly demand over tracked SKUs",
+      "provenance": "real",
+      "unit": "units",
+      "value": 3361605.0
+    },
+    {
+      "key": "ingest/line_units",
+      "note": "sum of line quantities, tracked SKUs, same week window",
+      "provenance": "real",
+      "unit": "units",
+      "value": 3361605.0
+    },
+    {
+      "key": "ingest/line_count",
+      "note": "cleaned sales line count, tracked SKUs, same week window",
+      "provenance": "real",
+      "unit": "lines",
+      "value": 256787.0
+    },
+    {
+      "key": "invoice_stream/line_count",
+      "note": "invoice-stream lines (future pick lists)",
+      "provenance": "real",
+      "unit": "lines",
+      "value": 256787.0
+    },
+    {
+      "key": "forecast/rows",
+      "note": "forecast rows (SKU x future week)",
+      "provenance": "derived",
+      "unit": "rows",
+      "value": 1480.0
+    },
+    {
+      "key": "forecast/skus",
+      "note": "distinct SKUs with a forecast",
+      "provenance": "derived",
+      "unit": "skus",
+      "value": 185.0
+    },
+    {
+      "key": "inventory/plan_skus",
+      "note": "SKUs with a replenishment plan",
+      "provenance": "synthetic-assigned",
+      "unit": "skus",
+      "value": 185.0
+    },
+    {
+      "key": "inventory/safety_stock_units",
+      "note": "total safety stock (stands on synthetic lead times)",
+      "provenance": "synthetic-assigned",
+      "unit": "units",
+      "value": 91877.51325688395
+    },
+    {
+      "key": "warehouse/velocity_lines",
+      "note": "pick velocity input: invoice lines per SKU, summed (real demand)",
+      "provenance": "real",
+      "unit": "lines",
+      "value": 256787.0
+    },
+    {
+      "key": "warehouse/picked_lines_total",
+      "note": "lines picked across all pick tours (deployed variant)",
+      "provenance": "synthetic-assigned",
+      "unit": "lines",
+      "value": 256787.0
+    },
+    {
+      "key": "warehouse/travel_mean_random",
+      "note": "mean pick travel per real invoice, random slotting (synthetic geometry)",
+      "provenance": "synthetic-assigned",
+      "unit": "m/invoice",
+      "value": 214.2703690433536
+    },
+    {
+      "key": "warehouse/invoices_random",
+      "note": "invoices evaluated under random slotting",
+      "provenance": "synthetic-assigned",
+      "unit": "invoices",
+      "value": 33492.0
+    },
+    {
+      "key": "warehouse/lines_random",
+      "note": "lines picked under random slotting",
+      "provenance": "synthetic-assigned",
+      "unit": "lines",
+      "value": 256787.0
+    },
+    {
+      "key": "warehouse/travel_mean_abc",
+      "note": "mean pick travel per real invoice, abc slotting (synthetic geometry)",
+      "provenance": "synthetic-assigned",
+      "unit": "m/invoice",
+      "value": 183.20402484175324
+    },
+    {
+      "key": "warehouse/invoices_abc",
+      "note": "invoices evaluated under abc slotting",
+      "provenance": "synthetic-assigned",
+      "unit": "invoices",
+      "value": 33492.0
+    },
+    {
+      "key": "warehouse/lines_abc",
+      "note": "lines picked under abc slotting",
+      "provenance": "synthetic-assigned",
+      "unit": "lines",
+      "value": 256787.0
+    },
+    {
+      "key": "warehouse/travel_mean_optimal",
+      "note": "mean pick travel per real invoice, optimal slotting (synthetic geometry)",
+      "provenance": "synthetic-assigned",
+      "unit": "m/invoice",
+      "value": 180.2469365818703
+    },
+    {
+      "key": "warehouse/invoices_optimal",
+      "note": "invoices evaluated under optimal slotting",
+      "provenance": "synthetic-assigned",
+      "unit": "invoices",
+      "value": 33492.0
+    },
+    {
+      "key": "warehouse/lines_optimal",
+      "note": "lines picked under optimal slotting",
+      "provenance": "synthetic-assigned",
+      "unit": "lines",
+      "value": 256787.0
+    },
+    {
+      "key": "window/stream_lines",
+      "note": "invoice-stream lines inside the 8-week window",
+      "provenance": "real",
+      "unit": "lines",
+      "value": 33312.0
+    },
+    {
+      "key": "fulfil/picked_lines",
+      "note": "lines the DES picked (per-order log)",
+      "provenance": "synthetic-assigned",
+      "unit": "lines",
+      "value": 33312.0
+    },
+    {
+      "key": "fulfil/orders",
+      "note": "orders the DES shipped in the window",
+      "provenance": "synthetic-assigned",
+      "unit": "orders",
+      "value": 4151.0
+    },
+    {
+      "key": "fulfil/cartons_packed",
+      "note": "cartons packed, summed over the per-order log",
+      "provenance": "synthetic-assigned",
+      "unit": "cartons",
+      "value": 70820.0
+    },
+    {
+      "key": "fulfil/cartons_shipped",
+      "note": "cartons shipped, summed over the per-day aggregation",
+      "provenance": "synthetic-assigned",
+      "unit": "cartons",
+      "value": 70820.0
+    },
+    {
+      "key": "fulfil/labour_hours",
+      "note": "DES picking labour (synthetic crew/geometry)",
+      "provenance": "synthetic-assigned",
+      "unit": "hours",
+      "value": 270.3637037037037
+    },
+    {
+      "key": "transport/routed_drops",
+      "note": "drops counted from the route structures (CVRP nodes + peeled full loads)",
+      "provenance": "synthetic-assigned",
+      "unit": "orders",
+      "value": 4151.0
+    },
+    {
+      "key": "transport/cvrp_km",
+      "note": "CVRP route km over the window (invented coordinates)",
+      "provenance": "synthetic-assigned",
+      "unit": "km",
+      "value": 252713.51551482288
+    },
+    {
+      "key": "transport/cw_km",
+      "note": "Clarke-Wright baseline km, identical instances",
+      "provenance": "synthetic-assigned",
+      "unit": "km",
+      "value": 253201.194790077
+    },
+    {
+      "key": "costing/labour",
+      "note": "270.4 DES hours x 14.50/h (rate INVENTED)",
+      "provenance": "synthetic-assigned",
+      "unit": "GBP",
+      "value": 3920.273703703704
+    },
+    {
+      "key": "costing/transport",
+      "note": "252,713.5 CVRP km x 0.85/km (km + rate INVENTED)",
+      "provenance": "synthetic-assigned",
+      "unit": "GBP",
+      "value": 214806.48818759943
+    },
+    {
+      "key": "costing/holding",
+      "note": "91,878 SS units x 0.02/unit-week x 8w",
+      "provenance": "synthetic-assigned",
+      "unit": "GBP",
+      "value": 14700.40212110143
+    },
+    {
+      "key": "costing/facility",
+      "note": "2,500/week fixed x 8w (INVENTED)",
+      "provenance": "synthetic-assigned",
+      "unit": "GBP",
+      "value": 20000.0
+    },
+    {
+      "key": "costing/total_cost",
+      "note": "sum of the four lines above (identity (l))",
+      "provenance": "synthetic-assigned",
+      "unit": "GBP",
+      "value": 253427.16401240457
+    },
+    {
+      "key": "costing/window_revenue",
+      "note": "real revenue of the same 8-week window (identity (m))",
+      "provenance": "real",
+      "unit": "GBP",
+      "value": 1047042.4100000001
+    },
+    {
+      "key": "published/revenue_gbp",
+      "note": "published by retail-analytics-real (README) / fixture expected.json",
+      "provenance": "real",
+      "unit": "GBP",
+      "value": 19643861.62
+    },
+    {
+      "key": "costing/component_sum",
+      "note": "labour + transport + holding + facility, re-added here",
+      "provenance": "synthetic-assigned",
+      "unit": "GBP",
+      "value": 253427.16401240457
+    },
+    {
+      "key": "ingest/window_revenue",
+      "note": "cleaned revenue, tracked SKUs, same window (ingest's filter)",
+      "provenance": "real",
+      "unit": "GBP",
+      "value": 1047042.4099999999
+    }
+  ],
+  "schema_version": "1.0",
+  "source": "full",
+  "stages": [
+    {
+      "detail": {
+        "cleaned_sales_rows": 1003340,
+        "cleaning_log": [
+          {
+            "note": "identical invoice/code/qty/time/price/customer",
+            "pct_removed": 0.032167821685243465,
+            "rows_in": 1067371,
+            "rows_out": 1033036,
+            "rows_removed": 34335,
+            "step": "drop exact duplicates"
+          },
+          {
+            "note": "kept as returns frame, excluded from sales",
+            "pct_removed": 0.01849306316527207,
+            "rows_in": 1033036,
+            "rows_out": 1013932,
+            "rows_removed": 19104,
+            "step": "separate cancellations (C*)"
+          },
+          {
+            "note": "POST/D/M/DOT/BANK CHARGES/ADJUST/TEST/gift_ etc.",
+            "pct_removed": 0.004564408658568819,
+            "rows_in": 1013932,
+            "rows_out": 1009304,
+            "rows_removed": 4628,
+            "step": "remove non-product StockCodes"
+          },
+          {
+            "note": "no revenue information; mostly stock notes",
+            "pct_removed": 0.005909022455077954,
+            "rows_in": 1009304,
+            "rows_out": 1003340,
+            "rows_removed": 5964,
+            "step": "drop zero/negative-price rows"
+          },
+          {
+            "note": "stock adjustments outside C-invoices",
+            "pct_removed": 0.0,
+            "rows_in": 1003340,
+            "rows_out": 1003340,
+            "rows_removed": 0,
+            "step": "drop non-cancellation qty <= 0"
+          },
+          {
+            "note": "226,761 rows flagged, kept for revenue",
+            "pct_removed": 0.0,
+            "rows_in": 1003340,
+            "rows_out": 1003340,
+            "rows_removed": 0,
+            "step": "flag missing CustomerID"
+          }
+        ],
+        "invoices": 33492,
+        "raw_rows": 1067371,
+        "returns_rows": 17914,
+        "stream_lines": 256787,
+        "tracked_lines": 256787.0,
+        "tracked_skus": 200,
+        "week_end": "2011-12-04",
+        "week_start": "2009-12-13",
+        "weeks": 104
+      },
+      "headline": {
+        "label": "cleaned revenue (GBP)",
+        "value": 19643861.62
+      },
+      "id": 0,
+      "name": "ingest",
+      "provenance": "real"
+    },
+    {
+      "detail": {
+        "class_winners": [
+          {
+            "cells": 365,
+            "class": "erratic",
+            "mean_mase": 0.9347844607892879,
+            "model": "croston_sba",
+            "winner": true
+          },
+          {
+            "cells": 365,
+            "class": "erratic",
+            "mean_mase": 0.9773386082208466,
+            "model": "lag_linear",
+            "winner": false
+          },
+          {
+            "cells": 365,
+            "class": "erratic",
+            "mean_mase": 1.1501700488356394,
+            "model": "naive",
+            "winner": false
+          },
+          {
+            "cells": 365,
+            "class": "erratic",
+            "mean_mase": 1.2178576397335525,
+            "model": "seasonal_naive",
+            "winner": false
+          },
+          {
+            "cells": 3,
+            "class": "intermittent",
+            "mean_mase": 0.9825669370674627,
+            "model": "croston_sba",
+            "winner": true
+          },
+          {
+            "cells": 3,
+            "class": "intermittent",
+            "mean_mase": 1.1744159875825788,
+            "model": "naive",
+            "winner": false
+          },
+          {
+            "cells": 3,
+            "class": "intermittent",
+            "mean_mase": 1.4934380772068032,
+            "model": "lag_linear",
+            "winner": false
+          },
+          {
+            "cells": 3,
+            "class": "intermittent",
+            "mean_mase": 2.302076740002219,
+            "model": "seasonal_naive",
+            "winner": false
+          },
+          {
+            "cells": 53,
+            "class": "lumpy",
+            "mean_mase": 1.7824208565552324,
+            "model": "naive",
+            "winner": true
+          },
+          {
+            "cells": 53,
+            "class": "lumpy",
+            "mean_mase": 2.068212340724786,
+            "model": "seasonal_naive",
+            "winner": false
+          },
+          {
+            "cells": 53,
+            "class": "lumpy",
+            "mean_mase": 2.1907033677102747,
+            "model": "lag_linear",
+            "winner": false
+          },
+          {
+            "cells": 53,
+            "class": "lumpy",
+            "mean_mase": 2.205579503394827,
+            "model": "croston_sba",
+            "winner": false
+          },
+          {
+            "cells": 132,
+            "class": "smooth",
+            "mean_mase": 0.7716610129361168,
+            "model": "croston_sba",
+            "winner": true
+          },
+          {
+            "cells": 132,
+            "class": "smooth",
+            "mean_mase": 0.8473894349044323,
+            "model": "lag_linear",
+            "winner": false
+          },
+          {
+            "cells": 132,
+            "class": "smooth",
+            "mean_mase": 1.1532913431935854,
+            "model": "seasonal_naive",
+            "winner": false
+          },
+          {
+            "cells": 132,
+            "class": "smooth",
+            "mean_mase": 1.1672390421259768,
+            "model": "naive",
+            "winner": false
+          }
+        ],
+        "horizon_weeks": 8
+      },
+      "headline": {
+        "label": "SKUs forecast",
+        "value": 185.0
+      },
+      "id": 1,
+      "name": "forecast",
+      "provenance": "derived"
+    },
+    {
+      "detail": {
+        "class_summary": [
+          {
+            "Class": "erratic",
+            "MeanLeadWeeks": 3.5327868852459017,
+            "MuWeekly": 20727.982877696795,
+            "OrderUpTo": 158524.37280369358,
+            "SKUs": 122,
+            "SafetyStock": 62506.38033854118,
+            "SafetyStockWeeks": 3.0155553826608825,
+            "SigmaOverMu": 0.8551417007883186
+          },
+          {
+            "Class": "intermittent",
+            "MeanLeadWeeks": 5.0,
+            "MuWeekly": 313.4218405342114,
+            "OrderUpTo": 2453.7868356652543,
+            "SKUs": 1,
+            "SafetyStock": 573.255792459986,
+            "SafetyStockWeeks": 1.829023119393661,
+            "SigmaOverMu": 0.45395866810060787
+          },
+          {
+            "Class": "lumpy",
+            "MeanLeadWeeks": 4.388888888888889,
+            "MuWeekly": 4446.0,
+            "OrderUpTo": 33539.60590648638,
+            "SKUs": 18,
+            "SafetyStock": 10216.605906486377,
+            "SafetyStockWeeks": 2.2979320527409755,
+            "SigmaOverMu": 0.6043772199271149
+          },
+          {
+            "Class": "smooth",
+            "MeanLeadWeeks": 2.5454545454545454,
+            "MuWeekly": 10933.357949294363,
+            "OrderUpTo": 57140.65382320849,
+            "SKUs": 44,
+            "SafetyStock": 18581.27121939639,
+            "SafetyStockWeeks": 1.6995026876071153,
+            "SigmaOverMu": 0.5484222323742933
+          }
+        ],
+        "order_up_to_units": 251658.4193690537,
+        "service_level": 0.95,
+        "skus_planned": 185
+      },
+      "headline": {
+        "label": "safety stock (units)",
+        "value": 91877.51325688395
+      },
+      "id": 2,
+      "name": "inventory",
+      "provenance": "synthetic-assigned"
+    },
+    {
+      "detail": {
+        "deployed_variant": "optimal (linear assignment)",
+        "slotting_comparison": [
+          {
+            "delta_vs_random_pct": 0.0,
+            "invoices": 33492,
+            "lines": 256787,
+            "mean_travel_m": 214.2703690433536,
+            "total_travel_m": 7176343.199999999,
+            "variant": "random"
+          },
+          {
+            "delta_vs_random_pct": -14.49866555991915,
+            "invoices": 33492,
+            "lines": 256787,
+            "mean_travel_m": 183.20402484175324,
+            "total_travel_m": 6135869.199999999,
+            "variant": "abc"
+          },
+          {
+            "delta_vs_random_pct": -15.878738909811323,
+            "invoices": 33492,
+            "lines": 256787,
+            "mean_travel_m": 180.2469365818703,
+            "total_travel_m": 6036830.4,
+            "variant": "optimal"
+          }
+        ]
+      },
+      "headline": {
+        "label": "mean pick travel, deployed (m/invoice)",
+        "value": 180.2469365818703
+      },
+      "id": 3,
+      "name": "warehouse",
+      "provenance": "synthetic-assigned"
+    },
+    {
+      "detail": {
+        "cartons_shipped": 70820,
+        "labour_hours": 270.3637037037037,
+        "lines_picked": 33312,
+        "mean_wait_min": 0.018702320725927157,
+        "n_pickers": 4,
+        "p95_wait_min": 0.0,
+        "per_day": [
+          {
+            "Cartons": 1420,
+            "Day": "2010-10-18",
+            "LabourHours": 5.141574074074074,
+            "Lines": 635,
+            "Orders": 85
+          },
+          {
+            "Cartons": 1384,
+            "Day": "2010-10-19",
+            "LabourHours": 4.440462962962964,
+            "Lines": 538,
+            "Orders": 67
+          },
+          {
+            "Cartons": 1067,
+            "Day": "2010-10-20",
+            "LabourHours": 5.566851851851852,
+            "Lines": 625,
+            "Orders": 90
+          },
+          {
+            "Cartons": 646,
+            "Day": "2010-10-21",
+            "LabourHours": 4.53962962962963,
+            "Lines": 499,
+            "Orders": 80
+          },
+          {
+            "Cartons": 1029,
+            "Day": "2010-10-22",
+            "LabourHours": 4.518055555555557,
+            "Lines": 489,
+            "Orders": 73
+          },
+          {
+            "Cartons": 711,
+            "Day": "2010-10-24",
+            "LabourHours": 4.811481481481482,
+            "Lines": 595,
+            "Orders": 74
+          },
+          {
+            "Cartons": 801,
+            "Day": "2010-10-25",
+            "LabourHours": 4.058796296296296,
+            "Lines": 477,
+            "Orders": 66
+          },
+          {
+            "Cartons": 1274,
+            "Day": "2010-10-26",
+            "LabourHours": 5.098981481481482,
+            "Lines": 609,
+            "Orders": 87
+          },
+          {
+            "Cartons": 717,
+            "Day": "2010-10-27",
+            "LabourHours": 3.7512962962962964,
+            "Lines": 427,
+            "Orders": 67
+          },
+          {
+            "Cartons": 580,
+            "Day": "2010-10-28",
+            "LabourHours": 3.494907407407408,
+            "Lines": 391,
+            "Orders": 56
+          },
+          {
+            "Cartons": 1619,
+            "Day": "2010-10-29",
+            "LabourHours": 4.361111111111112,
+            "Lines": 564,
+            "Orders": 67
+          },
+          {
+            "Cartons": 626,
+            "Day": "2010-10-31",
+            "LabourHours": 5.181851851851851,
+            "Lines": 648,
+            "Orders": 76
+          },
+          {
+            "Cartons": 544,
+            "Day": "2010-11-01",
+            "LabourHours": 3.9183333333333334,
+            "Lines": 487,
+            "Orders": 55
+          },
+          {
+            "Cartons": 1320,
+            "Day": "2010-11-02",
+            "LabourHours": 4.825740740740741,
+            "Lines": 572,
+            "Orders": 76
+          },
+          {
+            "Cartons": 1550,
+            "Day": "2010-11-03",
+            "LabourHours": 4.582407407407407,
+            "Lines": 540,
+            "Orders": 77
+          },
+          {
+            "Cartons": 3179,
+            "Day": "2010-11-04",
+            "LabourHours": 7.6305555555555555,
+            "Lines": 955,
+            "Orders": 117
+          },
+          {
+            "Cartons": 1578,
+            "Day": "2010-11-05",
+            "LabourHours": 4.402222222222222,
+            "Lines": 510,
+            "Orders": 65
+          },
+          {
+            "Cartons": 791,
+            "Day": "2010-11-07",
+            "LabourHours": 5.8479629629629635,
+            "Lines": 768,
+            "Orders": 77
+          },
+          {
+            "Cartons": 1114,
+            "Day": "2010-11-08",
+            "LabourHours": 4.7491666666666665,
+            "Lines": 586,
+            "Orders": 72
+          },
+          {
+            "Cartons": 2077,
+            "Day": "2010-11-09",
+            "LabourHours": 6.456944444444445,
+            "Lines": 796,
+            "Orders": 104
+          },
+          {
+            "Cartons": 1734,
+            "Day": "2010-11-10",
+            "LabourHours": 6.461388888888889,
+            "Lines": 805,
+            "Orders": 107
+          },
+          {
+            "Cartons": 6280,
+            "Day": "2010-11-11",
+            "LabourHours": 7.145462962962963,
+            "Lines": 927,
+            "Orders": 108
+          },
+          {
+            "Cartons": 1284,
+            "Day": "2010-11-12",
+            "LabourHours": 6.333796296296296,
+            "Lines": 782,
+            "Orders": 99
+          },
+          {
+            "Cartons": 774,
+            "Day": "2010-11-14",
+            "LabourHours": 5.605462962962963,
+            "Lines": 683,
+            "Orders": 82
+          },
+          {
+            "Cartons": 3466,
+            "Day": "2010-11-15",
+            "LabourHours": 6.561296296296296,
+            "Lines": 845,
+            "Orders": 92
+          },
+          {
+            "Cartons": 2061,
+            "Day": "2010-11-16",
+            "LabourHours": 6.435925925925926,
+            "Lines": 837,
+            "Orders": 99
+          },
+          {
+            "Cartons": 1181,
+            "Day": "2010-11-17",
+            "LabourHours": 6.331296296296297,
+            "Lines": 744,
+            "Orders": 105
+          },
+          {
+            "Cartons": 1400,
+            "Day": "2010-11-18",
+            "LabourHours": 6.120555555555556,
+            "Lines": 814,
+            "Orders": 96
+          },
+          {
+            "Cartons": 1151,
+            "Day": "2010-11-19",
+            "LabourHours": 5.7246296296296295,
+            "Lines": 674,
+            "Orders": 88
+          },
+          {
+            "Cartons": 885,
+            "Day": "2010-11-21",
+            "LabourHours": 6.4343518518518525,
+            "Lines": 754,
+            "Orders": 92
+          },
+          {
+            "Cartons": 1190,
+            "Day": "2010-11-22",
+            "LabourHours": 5.917870370370371,
+            "Lines": 817,
+            "Orders": 89
+          },
+          {
+            "Cartons": 1573,
+            "Day": "2010-11-23",
+            "LabourHours": 7.547685185185185,
+            "Lines": 949,
+            "Orders": 111
+          },
+          {
+            "Cartons": 1989,
+            "Day": "2010-11-24",
+            "LabourHours": 7.076759259259259,
+            "Lines": 866,
+            "Orders": 117
+          },
+          {
+            "Cartons": 2286,
+            "Day": "2010-11-25",
+            "LabourHours": 8.913055555555555,
+            "Lines": 1073,
+            "Orders": 137
+          },
+          {
+            "Cartons": 912,
+            "Day": "2010-11-26",
+            "LabourHours": 5.3187037037037035,
+            "Lines": 652,
+            "Orders": 73
+          },
+          {
+            "Cartons": 525,
+            "Day": "2010-11-28",
+            "LabourHours": 5.962407407407408,
+            "Lines": 706,
+            "Orders": 84
+          },
+          {
+            "Cartons": 1953,
+            "Day": "2010-11-29",
+            "LabourHours": 7.64287037037037,
+            "Lines": 1021,
+            "Orders": 101
+          },
+          {
+            "Cartons": 2079,
+            "Day": "2010-11-30",
+            "LabourHours": 6.631759259259259,
+            "Lines": 788,
+            "Orders": 109
+          },
+          {
+            "Cartons": 2270,
+            "Day": "2010-12-01",
+            "LabourHours": 6.273796296296297,
+            "Lines": 756,
+            "Orders": 107
+          },
+          {
+            "Cartons": 1720,
+            "Day": "2010-12-02",
+            "LabourHours": 6.374351851851852,
+            "Lines": 660,
+            "Orders": 114
+          },
+          {
+            "Cartons": 1173,
+            "Day": "2010-12-03",
+            "LabourHours": 4.138518518518519,
+            "Lines": 544,
+            "Orders": 59
+          },
+          {
+            "Cartons": 696,
+            "Day": "2010-12-05",
+            "LabourHours": 5.846111111111111,
+            "Lines": 730,
+            "Orders": 82
+          },
+          {
+            "Cartons": 999,
+            "Day": "2010-12-06",
+            "LabourHours": 6.616018518518518,
+            "Lines": 900,
+            "Orders": 90
+          },
+          {
+            "Cartons": 2116,
+            "Day": "2010-12-07",
+            "LabourHours": 5.7011111111111115,
+            "Lines": 782,
+            "Orders": 77
+          },
+          {
+            "Cartons": 2408,
+            "Day": "2010-12-08",
+            "LabourHours": 5.854722222222223,
+            "Lines": 717,
+            "Orders": 101
+          },
+          {
+            "Cartons": 802,
+            "Day": "2010-12-09",
+            "LabourHours": 6.247314814814815,
+            "Lines": 769,
+            "Orders": 93
+          },
+          {
+            "Cartons": 1610,
+            "Day": "2010-12-10",
+            "LabourHours": 4.678425925925926,
+            "Lines": 627,
+            "Orders": 66
+          },
+          {
+            "Cartons": 276,
+            "Day": "2010-12-12",
+            "LabourHours": 3.089722222222222,
+            "Lines": 379,
+            "Orders": 42
+          }
+        ],
+        "window_end": "2010-12-12",
+        "window_start": "2010-10-24",
+        "window_weeks": 8,
+        "working_days": 48
+      },
+      "headline": {
+        "label": "orders shipped (window)",
+        "value": 4151.0
+      },
+      "id": 4,
+      "name": "fulfilment (DES)",
+      "provenance": "synthetic-assigned"
+    },
+    {
+      "detail": {
+        "cvrp_km": 252713.51551482288,
+        "cvrp_vehicle_days": 924,
+        "cw_km": 253201.194790077,
+        "cw_vehicle_days": 937,
+        "delivery_days": 48,
+        "delta_vs_cw_pct": -0.19260543997765528,
+        "drops_routed": 4151,
+        "per_day": [
+          {
+            "Cartons": 1420,
+            "CvrpKm": 6877.509156881239,
+            "CvrpVehicles": 19,
+            "CwKm": 7011.691846452832,
+            "CwVehicles": 19,
+            "Day": "2010-10-18",
+            "Drops": 85
+          },
+          {
+            "Cartons": 1384,
+            "CvrpKm": 4618.490712653855,
+            "CvrpVehicles": 18,
+            "CwKm": 4517.4706777654,
+            "CwVehicles": 19,
+            "Day": "2010-10-19",
+            "Drops": 67
+          },
+          {
+            "Cartons": 1067,
+            "CvrpKm": 4258.728526423843,
+            "CvrpVehicles": 14,
+            "CwKm": 4316.843786179515,
+            "CwVehicles": 14,
+            "Day": "2010-10-20",
+            "Drops": 90
+          },
+          {
+            "Cartons": 646,
+            "CvrpKm": 3494.6330996825677,
+            "CvrpVehicles": 9,
+            "CwKm": 3551.608415964549,
+            "CwVehicles": 9,
+            "Day": "2010-10-21",
+            "Drops": 80
+          },
+          {
+            "Cartons": 1029,
+            "CvrpKm": 3915.206771508836,
+            "CvrpVehicles": 13,
+            "CwKm": 4126.908560419891,
+            "CwVehicles": 13,
+            "Day": "2010-10-22",
+            "Drops": 73
+          },
+          {
+            "Cartons": 711,
+            "CvrpKm": 3178.021240490096,
+            "CvrpVehicles": 9,
+            "CwKm": 3230.8307907422636,
+            "CwVehicles": 10,
+            "Day": "2010-10-24",
+            "Drops": 74
+          },
+          {
+            "Cartons": 801,
+            "CvrpKm": 3004.773267581455,
+            "CvrpVehicles": 11,
+            "CwKm": 3119.5846591795457,
+            "CwVehicles": 11,
+            "Day": "2010-10-25",
+            "Drops": 66
+          },
+          {
+            "Cartons": 1274,
+            "CvrpKm": 5522.654228149722,
+            "CvrpVehicles": 17,
+            "CwKm": 5375.559029076261,
+            "CwVehicles": 17,
+            "Day": "2010-10-26",
+            "Drops": 87
+          },
+          {
+            "Cartons": 717,
+            "CvrpKm": 3338.7243936789555,
+            "CvrpVehicles": 10,
+            "CwKm": 3423.9524499460535,
+            "CwVehicles": 10,
+            "Day": "2010-10-27",
+            "Drops": 67
+          },
+          {
+            "Cartons": 580,
+            "CvrpKm": 2886.631683624061,
+            "CvrpVehicles": 8,
+            "CwKm": 2891.918219999027,
+            "CwVehicles": 8,
+            "Day": "2010-10-28",
+            "Drops": 56
+          },
+          {
+            "Cartons": 1619,
+            "CvrpKm": 5450.9698860694725,
+            "CvrpVehicles": 21,
+            "CwKm": 5417.943703221626,
+            "CwVehicles": 21,
+            "Day": "2010-10-29",
+            "Drops": 67
+          },
+          {
+            "Cartons": 626,
+            "CvrpKm": 2741.242044030228,
+            "CvrpVehicles": 9,
+            "CwKm": 2824.560984161411,
+            "CwVehicles": 9,
+            "Day": "2010-10-31",
+            "Drops": 76
+          },
+          {
+            "Cartons": 544,
+            "CvrpKm": 2432.788025736851,
+            "CvrpVehicles": 8,
+            "CwKm": 2530.237997951416,
+            "CwVehicles": 8,
+            "Day": "2010-11-01",
+            "Drops": 55
+          },
+          {
+            "Cartons": 1320,
+            "CvrpKm": 5136.78584591029,
+            "CvrpVehicles": 18,
+            "CwKm": 5240.7592065249,
+            "CwVehicles": 18,
+            "Day": "2010-11-02",
+            "Drops": 76
+          },
+          {
+            "Cartons": 1550,
+            "CvrpKm": 6580.338072354462,
+            "CvrpVehicles": 20,
+            "CwKm": 6642.427517084019,
+            "CwVehicles": 20,
+            "Day": "2010-11-03",
+            "Drops": 77
+          },
+          {
+            "Cartons": 3179,
+            "CvrpKm": 8025.714668360695,
+            "CvrpVehicles": 40,
+            "CwKm": 7796.098368271602,
+            "CwVehicles": 41,
+            "Day": "2010-11-04",
+            "Drops": 117
+          },
+          {
+            "Cartons": 1578,
+            "CvrpKm": 5172.268784148291,
+            "CvrpVehicles": 21,
+            "CwKm": 5161.794010020982,
+            "CwVehicles": 21,
+            "Day": "2010-11-05",
+            "Drops": 65
+          },
+          {
+            "Cartons": 791,
+            "CvrpKm": 3081.1536539357535,
+            "CvrpVehicles": 11,
+            "CwKm": 3130.7794771719496,
+            "CwVehicles": 11,
+            "Day": "2010-11-07",
+            "Drops": 77
+          },
+          {
+            "Cartons": 1114,
+            "CvrpKm": 4532.913102977599,
+            "CvrpVehicles": 15,
+            "CwKm": 4606.106772039905,
+            "CwVehicles": 15,
+            "Day": "2010-11-08",
+            "Drops": 72
+          },
+          {
+            "Cartons": 2077,
+            "CvrpKm": 6367.211279312593,
+            "CvrpVehicles": 27,
+            "CwKm": 6460.765437880118,
+            "CwVehicles": 27,
+            "Day": "2010-11-09",
+            "Drops": 104
+          },
+          {
+            "Cartons": 1734,
+            "CvrpKm": 5367.654737793184,
+            "CvrpVehicles": 23,
+            "CwKm": 5461.238095946956,
+            "CwVehicles": 24,
+            "Day": "2010-11-10",
+            "Drops": 107
+          },
+          {
+            "Cartons": 6280,
+            "CvrpKm": 17397.686319130047,
+            "CvrpVehicles": 80,
+            "CwKm": 17418.37372498863,
+            "CwVehicles": 80,
+            "Day": "2010-11-11",
+            "Drops": 108
+          },
+          {
+            "Cartons": 1284,
+            "CvrpKm": 4492.754817655126,
+            "CvrpVehicles": 17,
+            "CwKm": 4535.9469700279315,
+            "CwVehicles": 17,
+            "Day": "2010-11-12",
+            "Drops": 99
+          },
+          {
+            "Cartons": 774,
+            "CvrpKm": 3016.1004388497954,
+            "CvrpVehicles": 10,
+            "CwKm": 2926.716396526003,
+            "CwVehicles": 10,
+            "Day": "2010-11-14",
+            "Drops": 82
+          },
+          {
+            "Cartons": 3466,
+            "CvrpKm": 8790.686949659666,
+            "CvrpVehicles": 44,
+            "CwKm": 8794.144924775685,
+            "CwVehicles": 45,
+            "Day": "2010-11-15",
+            "Drops": 92
+          },
+          {
+            "Cartons": 2061,
+            "CvrpKm": 9688.159127090858,
+            "CvrpVehicles": 27,
+            "CwKm": 9648.67675405973,
+            "CwVehicles": 27,
+            "Day": "2010-11-16",
+            "Drops": 99
+          },
+          {
+            "Cartons": 1181,
+            "CvrpKm": 4761.018951979846,
+            "CvrpVehicles": 15,
+            "CwKm": 4816.505438469877,
+            "CwVehicles": 17,
+            "Day": "2010-11-17",
+            "Drops": 105
+          },
+          {
+            "Cartons": 1400,
+            "CvrpKm": 5625.178857963818,
+            "CvrpVehicles": 18,
+            "CwKm": 5668.0886350317005,
+            "CwVehicles": 20,
+            "Day": "2010-11-18",
+            "Drops": 96
+          },
+          {
+            "Cartons": 1151,
+            "CvrpKm": 5413.2585983940835,
+            "CvrpVehicles": 15,
+            "CwKm": 5279.063363130683,
+            "CwVehicles": 15,
+            "Day": "2010-11-19",
+            "Drops": 88
+          },
+          {
+            "Cartons": 885,
+            "CvrpKm": 3882.556876094568,
+            "CvrpVehicles": 12,
+            "CwKm": 3897.635020562286,
+            "CwVehicles": 12,
+            "Day": "2010-11-21",
+            "Drops": 92
+          },
+          {
+            "Cartons": 1190,
+            "CvrpKm": 4180.433215360504,
+            "CvrpVehicles": 16,
+            "CwKm": 4228.892220344896,
+            "CwVehicles": 16,
+            "Day": "2010-11-22",
+            "Drops": 89
+          },
+          {
+            "Cartons": 1573,
+            "CvrpKm": 5673.824499441939,
+            "CvrpVehicles": 20,
+            "CwKm": 5715.269953451196,
+            "CwVehicles": 21,
+            "Day": "2010-11-23",
+            "Drops": 111
+          },
+          {
+            "Cartons": 1989,
+            "CvrpKm": 5369.927325478575,
+            "CvrpVehicles": 26,
+            "CwKm": 5337.450797255791,
+            "CwVehicles": 26,
+            "Day": "2010-11-24",
+            "Drops": 117
+          },
+          {
+            "Cartons": 2286,
+            "CvrpKm": 7076.164937028965,
+            "CvrpVehicles": 29,
+            "CwKm": 7026.126166819862,
+            "CwVehicles": 30,
+            "Day": "2010-11-25",
+            "Drops": 137
+          },
+          {
+            "Cartons": 912,
+            "CvrpKm": 4877.53295975371,
+            "CvrpVehicles": 12,
+            "CwKm": 4913.364091729256,
+            "CwVehicles": 12,
+            "Day": "2010-11-26",
+            "Drops": 73
+          },
+          {
+            "Cartons": 525,
+            "CvrpKm": 2787.279834062007,
+            "CvrpVehicles": 7,
+            "CwKm": 2746.5923215401394,
+            "CwVehicles": 7,
+            "Day": "2010-11-28",
+            "Drops": 84
+          },
+          {
+            "Cartons": 1953,
+            "CvrpKm": 7816.150808936649,
+            "CvrpVehicles": 25,
+            "CwKm": 7785.237473081757,
+            "CwVehicles": 25,
+            "Day": "2010-11-29",
+            "Drops": 101
+          },
+          {
+            "Cartons": 2079,
+            "CvrpKm": 7852.053616403021,
+            "CvrpVehicles": 27,
+            "CwKm": 7656.428898389551,
+            "CwVehicles": 27,
+            "Day": "2010-11-30",
+            "Drops": 109
+          },
+          {
+            "Cartons": 2270,
+            "CvrpKm": 6228.389469778531,
+            "CvrpVehicles": 30,
+            "CwKm": 6116.825074929382,
+            "CwVehicles": 30,
+            "Day": "2010-12-01",
+            "Drops": 107
+          },
+          {
+            "Cartons": 1720,
+            "CvrpKm": 4171.301879837476,
+            "CvrpVehicles": 22,
+            "CwKm": 4171.088532516636,
+            "CwVehicles": 22,
+            "Day": "2010-12-02",
+            "Drops": 114
+          },
+          {
+            "Cartons": 1173,
+            "CvrpKm": 4880.6319011385385,
+            "CvrpVehicles": 15,
+            "CwKm": 4816.909818093903,
+            "CwVehicles": 15,
+            "Day": "2010-12-03",
+            "Drops": 59
+          },
+          {
+            "Cartons": 696,
+            "CvrpKm": 3687.719666008739,
+            "CvrpVehicles": 9,
+            "CwKm": 3766.350180472077,
+            "CwVehicles": 10,
+            "Day": "2010-12-05",
+            "Drops": 82
+          },
+          {
+            "Cartons": 999,
+            "CvrpKm": 3491.425140670375,
+            "CvrpVehicles": 13,
+            "CwKm": 3560.9461473560423,
+            "CwVehicles": 13,
+            "Day": "2010-12-06",
+            "Drops": 90
+          },
+          {
+            "Cartons": 2116,
+            "CvrpKm": 6225.667333972379,
+            "CvrpVehicles": 27,
+            "CwKm": 6190.395575756136,
+            "CwVehicles": 28,
+            "Day": "2010-12-07",
+            "Drops": 77
+          },
+          {
+            "Cartons": 2408,
+            "CvrpKm": 8387.563986397088,
+            "CvrpVehicles": 31,
+            "CwKm": 8275.454002368573,
+            "CwVehicles": 31,
+            "Day": "2010-12-08",
+            "Drops": 101
+          },
+          {
+            "Cartons": 802,
+            "CvrpKm": 4037.9334251968635,
+            "CvrpVehicles": 11,
+            "CwKm": 4104.817979790052,
+            "CwVehicles": 11,
+            "Day": "2010-12-09",
+            "Drops": 93
+          },
+          {
+            "Cartons": 1610,
+            "CvrpKm": 5257.655813534073,
+            "CvrpVehicles": 21,
+            "CwKm": 5248.508893832123,
+            "CwVehicles": 21,
+            "Day": "2010-12-10",
+            "Drops": 66
+          },
+          {
+            "Cartons": 276,
+            "CvrpKm": 1660.0455837015902,
+            "CvrpVehicles": 4,
+            "CwKm": 1716.305428776875,
+            "CwVehicles": 4,
+            "Day": "2010-12-12",
+            "Drops": 42
+          }
+        ],
+        "record": {
+          "losses": 19,
+          "ties": 0,
+          "wins": 29
+        },
+        "solution_limit": 1000
+      },
+      "headline": {
+        "label": "CVRP route km (window)",
+        "value": 252713.51551482288
+      },
+      "id": 5,
+      "name": "transport (CVRP)",
+      "provenance": "synthetic-assigned"
+    },
+    {
+      "detail": {
+        "assumptions": {
+          "allocation": "labour: own pick minutes; transport: carton share of day km; facility: equal per order",
+          "facility_fixed_gbp_per_week": 2500.0,
+          "holding_rate_gbp_per_unit_week": 0.02,
+          "holding_scope": "stage-2 safety stock; tracked SKUs without a plan carry 0",
+          "labour_rate_gbp_per_hour": 14.5,
+          "rates": "synthetic-assigned (INVENTED; this is a cost-structure view, no profit claims)",
+          "transport_rate_gbp_per_km": 0.85,
+          "window_weeks": 8
+        },
+        "cost_pct_of_revenue": 24.204097330919435,
+        "lines": [
+          {
+            "basis": "270.4 DES hours x 14.50/h (rate INVENTED)",
+            "gbp": 3920.273703703704,
+            "item": "labour",
+            "provenance": "synthetic-assigned"
+          },
+          {
+            "basis": "252,713.5 CVRP km x 0.85/km (km + rate INVENTED)",
+            "gbp": 214806.48818759943,
+            "item": "transport",
+            "provenance": "synthetic-assigned"
+          },
+          {
+            "basis": "91,878 SS units x 0.02/unit-week x 8w",
+            "gbp": 14700.40212110143,
+            "item": "holding",
+            "provenance": "synthetic-assigned"
+          },
+          {
+            "basis": "2,500/week fixed x 8w (INVENTED)",
+            "gbp": 20000.0,
+            "item": "facility",
+            "provenance": "synthetic-assigned"
+          },
+          {
+            "basis": "sum of the four lines above (identity (l))",
+            "gbp": 253427.16401240457,
+            "item": "total cost",
+            "provenance": "synthetic-assigned"
+          },
+          {
+            "basis": "real revenue of the same 8-week window (identity (m))",
+            "gbp": 1047042.4100000001,
+            "item": "window revenue",
+            "provenance": "real"
+          }
+        ],
+        "window_revenue_gbp": 1047042.4100000001
+      },
+      "headline": {
+        "label": "modelled cost (GBP, window)",
+        "value": 253427.16401240457
+      },
+      "id": 6,
+      "name": "costing",
+      "provenance": "synthetic-assigned"
+    }
+  ],
+  "synthetic_seed": 42
+}

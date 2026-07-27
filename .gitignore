@@ -19,3 +19,8 @@ venv/
 Thumbs.db
 .idea/
 .vscode/
+
+# Local full-run scratch (the artifact itself IS committed: artifacts/full_run.json)
+full_run_stdout.log
+full_run_stderr.log
+full_run.pid
