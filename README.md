@@ -328,6 +328,44 @@ Headless proof that the views render lives in the test suite
 (`tests/test_app.py` asserts the DOM contains all 13 identity rows with PASS
 badges and the three provenance color classes).
 
+## Scenario / shock what-if — the ledger still reconciles under a shock
+
+A reconciliation harness earns its keep the moment an input moves. `scenario.py`
+(a chain consumer, alongside `app.py`) perturbs **one** input, re-runs only the
+stages that input feeds — **reusing the existing stage engines, never
+re-inventing one** — and then re-runs **all 13** cross-stage identities on the
+perturbed run. The deltas are reported stage by stage and on the ledger, but the
+point is the last line of each: *the ledger still reconciles*. Two labelled
+scenarios ship (`python scenario.py`; deterministic, so the deliverables
+regenerate byte-for-byte):
+
+| scenario | the ONE input perturbed | where it lands | identities |
+|---|---|---|---|
+| demand surge ×1.20 on a demand class | forecast demand + uncertainty (**derived**) | inventory buffer + its holding charge | **13/13 hold** |
+| cost-rate shock ×1.20 on transport GBP/km | a cost rate (**synthetic-assigned**) | the dominant transport line + the total | **13/13 hold** |
+
+The honest reading is the finding, not the numbers. The **demand surge** is a
+*planning-side* shock: it perturbs the derived forecast, so the safety-stock
+buffer and its holding charge rise for the surged class (fixture path: holding
+467.19 → 534.36 GBP), yet the physical fulfilment of the already-real orders —
+picks, cartons, CVRP km, labour hours — is **unchanged by construction** (the
+real invoice stream is immutable), so those cost lines and every physical
+identity (i, j, k) do not move; the aggregate safety-stock rise (+14.4%) is
+*less* than the +20% class surge because the untouched lumpy class dilutes it —
+reported as measured. The **cost-rate shock** perturbs a labelled synthetic rate:
+the km are unchanged (the rate rose, not the distance), transport and the total
+rise together (fixture: total 45,920.63 → 51,004.18 GBP, +11.1%), and additivity
+(l) plus the real window revenue (m) still close to the cent. The real
+vs synthetic-assigned boundary is exactly the baseline's; these are
+cost-structure what-ifs under labelled assumptions, never profit claims.
+
+The committed deliverables ([`deliverables/scenarios.md`](deliverables/scenarios.md)
++ [`deliverables/scenarios.csv`](deliverables/scenarios.csv)) are the deterministic
+fixture CI path; `python scenario.py --full` runs the identical tool on the full
+UCI dataset. `tests/test_scenario.py` asserts the perturbation is pure and scoped,
+that it traces to the ledger exactly, and that all 13 identities hold under every
+perturbed run.
+
 ## How to run
 
 ```bash
@@ -346,6 +384,10 @@ python app.py                         # http://127.0.0.1:5077 (CHAIN_PORT overri
 
 # 3) hand off: executive deliverables from the same artifact
 python -m chain --deliverables        # deliverables/chain_report.pdf + chain_ledger.xlsx
+
+# 4) stress it: perturb one input, prove the ledger still reconciles
+python scenario.py                    # deliverables/scenarios.md + scenarios.csv (fixture path)
+#    (or on the full dataset: python scenario.py --full)
 
 ruff check .   # lint gate
 pytest -q      # fixture-based tests; full-data tests skip without raw data
@@ -382,11 +424,18 @@ The dataset itself is not redistributed (CC BY 4.0, see [CREDITS.md](CREDITS.md)
   DASHBOARD (stage flow, the 13-identity reconciliation panel, boundary map,
   ledgers and comparisons); byte-reproducible executive deliverables (CHAIN
   REPORT PDF + LEDGER workbook) built from the artifact, never recomputed.
+- [x] **Scenario / shock what-if** (done): `scenario.py` perturbs one input (a
+  ×1.20 demand surge on a class, or a ×1.20 transport-rate shock), re-runs the
+  stages it feeds by reusing the existing engines, and re-checks all 13
+  identities on the perturbed run — proving the ledger still reconciles under a
+  shock. Deterministic deliverables in `deliverables/scenarios.{md,csv}`.
 
 ## Docs
 
 - [docs/BUSINESS_CASE.md](docs/BUSINESS_CASE.md) — the reconciliation story: why the
   seams, not the silos, are where distributors lose money.
+- [deliverables/scenarios.md](deliverables/scenarios.md) — the shock what-if: one
+  input perturbed, traced to the ledger, all 13 identities still holding.
 - [CREDITS.md](CREDITS.md) — dataset citation, method references, adapted-from notes.
 
 ## License
