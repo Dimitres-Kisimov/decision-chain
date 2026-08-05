@@ -3,6 +3,27 @@
 **One real dataset through the whole distributor decision chain — with machine-checked
 reconciliation at every seam.**
 
+> ### ▶ Open the dashboard — [`web/chain_dashboard.html`](web/chain_dashboard.html)
+>
+> One real dataset run **end-to-end**, and every pound reconciles. The clickable
+> dashboard is a **single, self-contained, offline HTML file** — no server, no build, no
+> network: just **double-click [`web/chain_dashboard.html`](web/chain_dashboard.html)** (or
+> drag it into any browser). Four views: the **stage flow**, the **13 cross-stage
+> identities**, the **real-vs-synthetic boundary map**, and a **scenario what-if**. A
+> plain-language tour is in
+> [`docs/DASHBOARD_WALKTHROUGH.md`](docs/DASHBOARD_WALKTHROUGH.md).
+>
+> **What it proves, in three lines:**
+> 1. prediction → decision → operation land in **one reconciled ledger**, and every seam
+>    is checked by code, not by eye;
+> 2. on that end-to-end run, **all 13 cross-stage identities PASS** — including cross-repo
+>    revenue reproduced to the penny (GBP 19,643,861.62) and the ledger's window revenue
+>    equal to the cleaned data's, again to the penny (GBP 1,047,042.41);
+> 3. the real vs synthetic-assigned boundary is declared on **every** number — *modelled,
+>    not measured*, is always labelled as such.
+>
+> **Headline: 13 / 13 identities PASS.**
+
 My other repositories each solve one silo: cleaning, forecasting, warehouse simulation,
 routing, costing. Real distributors do not fail inside silos; they fail **at the seams**,
 where the forecast quietly uses different numbers than the invoices, and controlling
@@ -320,10 +341,18 @@ regenerating from the same artifact is **byte-identical** — asserted by tests.
 
 ### Seeing it
 
-No captures are committed (the license is portfolio-review only and the views
-regenerate in seconds): run `python app.py` and open `http://127.0.0.1:5077`
-for the stage flow + identity board, or `python -m chain --deliverables` and
-open `deliverables/chain_report.pdf` for the same views in hand-off form.
+The zero-setup path is the committed **static dashboard**
+[`web/chain_dashboard.html`](web/chain_dashboard.html): a single self-contained,
+offline HTML file (built by `python web/build_dashboard.py` from the same committed
+receipts) — no install, no server, no network; just open it in a browser. See
+[docs/DASHBOARD_WALKTHROUGH.md](docs/DASHBOARD_WALKTHROUGH.md) for a guided read of its
+four views.
+
+For the served version, no captures are committed (the license is portfolio-review only
+and the views regenerate in seconds): run `python app.py` and open
+`http://127.0.0.1:5077` for the stage flow + identity board, or
+`python -m chain --deliverables` and open `deliverables/chain_report.pdf` for the same
+views in hand-off form.
 Headless proof that the views render lives in the test suite
 (`tests/test_app.py` asserts the DOM contains all 13 identity rows with PASS
 badges and the three provenance color classes).
@@ -432,6 +461,10 @@ The dataset itself is not redistributed (CC BY 4.0, see [CREDITS.md](CREDITS.md)
 
 ## Docs
 
+- [docs/DASHBOARD_WALKTHROUGH.md](docs/DASHBOARD_WALKTHROUGH.md) — a plain-language tour
+  of the clickable `web/chain_dashboard.html`, walking the four views (stage flow, the 13
+  identities, the real-vs-synthetic boundary map, the scenario what-if) for a
+  non-technical reader; honest about what is real vs labelled-synthetic.
 - [docs/BUSINESS_CASE.md](docs/BUSINESS_CASE.md) — the reconciliation story: why the
   seams, not the silos, are where distributors lose money.
 - [deliverables/scenarios.md](deliverables/scenarios.md) — the shock what-if: one
