@@ -1,0 +1,162 @@
+{
+  "cost_shock_factor": 1.2,
+  "generated_by": "python web/build_dashboard.py --refresh-scenarios (reuses scenario.py)",
+  "scenarios": [
+    {
+      "deltas": [
+        {
+          "baseline": 3508.09947878237,
+          "delta": 701.6198957564739,
+          "metric": "forecast units, erratic class",
+          "pct": 19.999999999999996,
+          "perturbed": 4209.719374538844,
+          "provenance": "derived",
+          "stage": "1 forecast",
+          "unit": "units"
+        },
+        {
+          "baseline": 2919.907377116342,
+          "delta": 419.81625023732886,
+          "metric": "safety stock (total)",
+          "pct": 14.37772490755968,
+          "perturbed": 3339.723627353671,
+          "provenance": "synthetic-assigned",
+          "stage": "2 inventory",
+          "unit": "units"
+        },
+        {
+          "baseline": 4818.9269931027175,
+          "delta": 785.2201734346036,
+          "metric": "order-up-to (total)",
+          "pct": 16.294502376949918,
+          "perturbed": 5604.147166537321,
+          "provenance": "synthetic-assigned",
+          "stage": "2 inventory",
+          "unit": "units"
+        },
+        {
+          "baseline": 467.18518033861477,
+          "delta": 67.17060003797263,
+          "metric": "holding cost",
+          "pct": 14.377724907559683,
+          "perturbed": 534.3557803765874,
+          "provenance": "synthetic-assigned",
+          "stage": "5 costing",
+          "unit": "GBP"
+        },
+        {
+          "baseline": 25417.756446322725,
+          "delta": 0.0,
+          "metric": "transport cost",
+          "pct": 0.0,
+          "perturbed": 25417.756446322725,
+          "provenance": "synthetic-assigned",
+          "stage": "5 costing",
+          "unit": "GBP"
+        },
+        {
+          "baseline": 35.69148148148148,
+          "delta": 0.0,
+          "metric": "labour cost",
+          "pct": 0.0,
+          "perturbed": 35.69148148148148,
+          "provenance": "synthetic-assigned",
+          "stage": "5 costing",
+          "unit": "GBP"
+        },
+        {
+          "baseline": 45920.63310814282,
+          "delta": 67.17060003797087,
+          "metric": "total cost",
+          "pct": 0.1462754223788346,
+          "perturbed": 45987.80370818079,
+          "provenance": "synthetic-assigned",
+          "stage": "5 costing",
+          "unit": "GBP"
+        },
+        {
+          "baseline": 14545.029999999999,
+          "delta": 0.0,
+          "metric": "window revenue",
+          "pct": 0.0,
+          "perturbed": 14545.029999999999,
+          "provenance": "real",
+          "stage": "6 ledger",
+          "unit": "GBP"
+        }
+      ],
+      "factor": 1.2,
+      "identities_hold": true,
+      "identities_passed": 13,
+      "identities_total": 13,
+      "input_provenance": "derived",
+      "kind": "demand",
+      "name": "demand-surge x1.20 on the erratic class",
+      "perturbed_input": "forecast demand + uncertainty for the erratic class (x1.20, multiplicative)"
+    },
+    {
+      "deltas": [
+        {
+          "baseline": 29903.242878026736,
+          "delta": 0.0,
+          "metric": "CVRP route km",
+          "pct": 0.0,
+          "perturbed": 29903.242878026736,
+          "provenance": "synthetic-assigned",
+          "stage": "4b transport",
+          "unit": "km"
+        },
+        {
+          "baseline": 25417.756446322725,
+          "delta": 5083.551289264546,
+          "metric": "transport cost",
+          "pct": 20.000000000000004,
+          "perturbed": 30501.30773558727,
+          "provenance": "synthetic-assigned",
+          "stage": "5 costing",
+          "unit": "GBP"
+        },
+        {
+          "baseline": 467.18518033861477,
+          "delta": 0.0,
+          "metric": "holding cost",
+          "pct": 0.0,
+          "perturbed": 467.18518033861477,
+          "provenance": "synthetic-assigned",
+          "stage": "5 costing",
+          "unit": "GBP"
+        },
+        {
+          "baseline": 45920.63310814282,
+          "delta": 5083.551289264549,
+          "metric": "total cost",
+          "pct": 11.070298785499789,
+          "perturbed": 51004.18439740737,
+          "provenance": "synthetic-assigned",
+          "stage": "5 costing",
+          "unit": "GBP"
+        },
+        {
+          "baseline": 14545.029999999999,
+          "delta": 0.0,
+          "metric": "window revenue",
+          "pct": 0.0,
+          "perturbed": 14545.029999999999,
+          "provenance": "real",
+          "stage": "6 ledger",
+          "unit": "GBP"
+        }
+      ],
+      "factor": 1.2,
+      "identities_hold": true,
+      "identities_passed": 13,
+      "identities_total": 13,
+      "input_provenance": "synthetic-assigned",
+      "kind": "cost-rate",
+      "name": "cost-rate shock x1.20 on transport GBP/km",
+      "perturbed_input": "transport cost rate (0.85 -> 1.02 GBP/km)"
+    }
+  ],
+  "source": "committed real-row fixture (deterministic CI path)",
+  "surge_factor": 1.2
+}

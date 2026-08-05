@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>decision-chain &middot; chain dashboard</title>
+  <meta name="description" content="One real dataset through the whole distributor decision chain, machine-reconciled at every seam." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d9e6f'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EDC%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --green:#1d9e6f; --blue:#2f6bff; --amber:#e8a33d; --amber-ink:#b07617; --red:#d64550;
+      --bg:#f4f6fb; --panel:#ffffff; --panel-2:#f8fafc; --line:#e5e9f2;
+      --text:#1a2233; --muted:#6b7488;
+      --shadow:0 1px 2px rgba(20,30,60,.06),0 8px 24px rgba(20,30,60,.06);
+      --radius:12px;
+      --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      --mono:"Cascadia Code",Consolas,"Courier New",monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0e131f; --panel:#161d2b; --panel-2:#1b2331; --line:#262f42;
+        --text:#e8ecf5; --muted:#8b95ab; --amber-ink:#e8a33d;
+        --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg:#0e131f; --panel:#161d2b; --panel-2:#1b2331; --line:#262f42;
+      --text:#e8ecf5; --muted:#8b95ab; --amber-ink:#e8a33d;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+    }
+    :root[data-theme="light"] {
+      --bg:#f4f6fb; --panel:#ffffff; --panel-2:#f8fafc; --line:#e5e9f2;
+      --text:#1a2233; --muted:#6b7488; --amber-ink:#b07617;
+      --shadow:0 1px 2px rgba(20,30,60,.06),0 8px 24px rgba(20,30,60,.06);
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:var(--font); background:var(--bg); color:var(--text);
+      font-size:14px; -webkit-font-smoothing:antialiased; }
+    .page { max-width:1200px; margin:0 auto; padding:20px 24px 60px; }
+    code { font-family:var(--mono); font-size:12px; }
+    h2 { margin:0 0 8px; font-size:16px; }
+    .table-scroll { overflow-x:auto; }
+
+    .masthead { display:flex; justify-content:space-between; align-items:flex-start; gap:16px;
+      padding:8px 0 16px; flex-wrap:wrap; }
+    .masthead h1 { margin:0 0 4px; font-size:23px; letter-spacing:-.02em; }
+    .crumb { color:var(--muted); max-width:660px; }
+    .masthead-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .chip { background:var(--panel); border:1px solid var(--line); border-radius:999px;
+      padding:4px 12px; color:var(--muted); font-size:12px; }
+    .btn { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+      padding:5px 12px; color:var(--text); cursor:pointer; font-size:12px; }
+    .btn:hover { border-color:var(--muted); }
+    .verdict { border-radius:999px; padding:5px 14px; font-weight:700; font-size:13px; }
+    .verdict.pass { background:rgba(29,158,111,.14); color:var(--green); border:1px solid var(--green); }
+    .verdict.fail { background:rgba(214,69,80,.14); color:var(--red); border:1px solid var(--red); }
+
+    .stale-banner { background:rgba(232,163,61,.14); border:1px solid var(--amber);
+      border-radius:var(--radius); padding:10px 16px; margin-bottom:16px; }
+
+    .prov { border-radius:999px; padding:2px 10px; font-size:11px; font-weight:700; white-space:nowrap; }
+    .prov-real { background:rgba(29,158,111,.14); color:var(--green); border:1px solid var(--green); }
+    .prov-derived { background:rgba(47,107,255,.12); color:var(--blue); border:1px solid var(--blue); }
+    .prov-synth { background:rgba(232,163,61,.16); color:var(--amber-ink); border:1px solid var(--amber); }
+    .legend { color:var(--muted); margin:0 0 16px; display:flex; gap:10px; align-items:center;
+      flex-wrap:wrap; font-size:12px; }
+
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+      box-shadow:var(--shadow); padding:18px 20px; margin-bottom:18px; }
+    .panel.hero { border-width:2px; border-color:var(--green); }
+    .note { color:var(--muted); font-size:12.5px; margin:6px 0; }
+    .muted { color:var(--muted); }
+    .small { font-size:12px; }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    @media (max-width:980px) { .grid-2 { grid-template-columns:1fr; } }
+
+    .flow { display:flex; align-items:stretch; gap:6px; overflow-x:auto; padding:8px 0; }
+    .flow-stage { flex:1 1 0; min-width:128px; display:flex; }
+    .flow-arrow { align-self:center; color:var(--muted); font-size:18px; flex:0 0 auto; }
+    .stage-card { background:var(--panel-2); border:1px solid var(--line); border-top:3px solid var(--line);
+      border-radius:10px; padding:10px 12px; width:100%; display:flex; flex-direction:column; gap:4px; }
+    .stage-card .stage-name { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+    .stage-card .stage-number { font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; }
+    .stage-card .stage-label { font-size:11.5px; color:var(--muted); min-height:28px; }
+    .stage-card .prov { align-self:flex-start; }
+    .prov-real-border { border-top-color:var(--green); }
+    .prov-derived-border { border-top-color:var(--blue); }
+    .prov-synth-border { border-top-color:var(--amber); }
+
+    table { border-collapse:collapse; width:100%; }
+    th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); white-space:nowrap; }
+    td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+    tr:last-child td { border-bottom:none; }
+
+    .identities .id-name { font-weight:700; }
+    .identities .id-note { color:var(--muted); font-size:11.5px; margin-top:2px; max-width:400px; }
+    .identities .id-val { font-weight:600; font-variant-numeric:tabular-nums; }
+    .identities .id-label { color:var(--muted); font-size:11px; font-family:var(--mono); }
+    .identity-row:hover td { background:var(--panel-2); }
+
+    .badge { border-radius:6px; padding:2px 10px; font-weight:700; font-size:11.5px; }
+    .badge.pass { background:rgba(29,158,111,.16); color:var(--green); }
+    .badge.fail { background:rgba(214,69,80,.16); color:var(--red); }
+
+    .bnd-row .bnd-q { font-weight:600; }
+    .costing .total-row td { font-weight:700; border-top:2px solid var(--line); }
+
+    .bars { display:flex; flex-direction:column; gap:8px; margin:10px 0; }
+    .bar-row { display:grid; grid-template-columns:70px 1fr 210px; gap:10px; align-items:center; }
+    .bar-label { font-weight:600; }
+    .bar-track { background:var(--panel-2); border:1px solid var(--line); border-radius:6px;
+      height:18px; overflow:hidden; }
+    .bar-fill { background:var(--amber); height:100%; border-radius:5px 0 0 5px; transition:width .2s; }
+    .bar-fill.bar-best { background:var(--green); }
+    .bar-value { font-variant-numeric:tabular-nums; font-size:12.5px; }
+
+    .tabs { display:flex; gap:6px; margin:4px 0 14px; flex-wrap:wrap; }
+    .tab { background:var(--panel-2); border:1px solid var(--line); border-radius:999px;
+      padding:5px 14px; color:var(--muted); cursor:pointer; font-size:12.5px; font-weight:600; }
+    .tab.active { background:rgba(47,107,255,.10); color:var(--blue); border-color:var(--blue); }
+    .scn-panel { display:none; }
+    .scn-panel.active { display:block; }
+    .scn-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:2px; }
+    .scn-title { font-weight:700; font-size:14px; }
+    .ba-bars { display:flex; flex-wrap:wrap; gap:18px; margin:12px 0 14px; }
+    .ba-group { flex:1 1 320px; min-width:280px; }
+    .ba-metric { font-size:12px; font-weight:600; margin-bottom:6px; }
+    .ba-row { display:grid; grid-template-columns:52px 1fr auto; gap:8px; align-items:center; margin-bottom:5px; }
+    .ba-tag { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+    .ba-before { background:var(--muted); }
+    .ba-after { background:var(--amber); }
+    .ba-after.flat { background:var(--muted); }
+    .ba-val { font-variant-numeric:tabular-nums; font-size:12px; white-space:nowrap; }
+    .delta { color:var(--amber-ink); font-weight:700; }
+    .scn-table .unchanged td { color:var(--muted); }
+
+    .foot { color:var(--muted); font-size:12px; margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <div>
+      <h1>decision-chain &middot; chain dashboard</h1>
+      <div class="crumb">
+        one real dataset through ingest &rarr; forecast &rarr; inventory &rarr;
+        warehouse &rarr; fulfilment &rarr; transport &rarr; costing &mdash;
+        machine-reconciled at every seam.
+      </div>
+    </div>
+    <div class="masthead-right">
+      <span class="verdict pass">13/13 identities PASS</span>
+      <span class="chip">source: full run</span>
+      <span class="chip">schema 1.0</span>
+      <span class="chip">seed 42</span>
+      <button class="btn" id="themeToggle" type="button" title="Toggle light / dark">theme</button>
+    </div>
+  </header>
+
+  <div class="legend">
+    <strong>provenance</strong>
+    <span class="prov prov-real">real</span> observed in the dataset
+    <span class="prov prov-derived">derived</span> computed from real inputs
+    <span class="prov prov-synth">synthetic-assigned</span> invented, seeded (42), labelled
+  </div>
+  <section class="panel" id="sec-flow">
+    <h2>The chain &mdash; stage flow</h2>
+    <div class="flow">
+      <div class="flow-stage">
+        <div class="stage-card prov-real-border">
+          <div class="stage-name">0 &middot; ingest</div>
+          <div class="stage-number">19,643,862</div>
+          <div class="stage-label">cleaned revenue (GBP)</div>
+          <span class="prov prov-real">real</span>
+        </div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-stage">
+        <div class="stage-card prov-derived-border">
+          <div class="stage-name">1 &middot; forecast</div>
+          <div class="stage-number">185</div>
+          <div class="stage-label">SKUs forecast</div>
+          <span class="prov prov-derived">derived</span>
+        </div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-stage">
+        <div class="stage-card prov-synth-border">
+          <div class="stage-name">2 &middot; inventory</div>
+          <div class="stage-number">91,878</div>
+          <div class="stage-label">safety stock (units)</div>
+          <span class="prov prov-synth">synthetic-assigned</span>
+        </div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-stage">
+        <div class="stage-card prov-synth-border">
+          <div class="stage-name">3 &middot; warehouse</div>
+          <div class="stage-number">180.25</div>
+          <div class="stage-label">mean pick travel, deployed (m/invoice)</div>
+          <span class="prov prov-synth">synthetic-assigned</span>
+        </div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-stage">
+        <div class="stage-card prov-synth-border">
+          <div class="stage-name">4 &middot; fulfilment (DES)</div>
+          <div class="stage-number">4,151</div>
+          <div class="stage-label">orders shipped (window)</div>
+          <span class="prov prov-synth">synthetic-assigned</span>
+        </div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-stage">
+        <div class="stage-card prov-synth-border">
+          <div class="stage-name">5 &middot; transport (CVRP)</div>
+          <div class="stage-number">252,714</div>
+          <div class="stage-label">CVRP route km (window)</div>
+          <span class="prov prov-synth">synthetic-assigned</span>
+        </div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-stage">
+        <div class="stage-card prov-synth-border">
+          <div class="stage-name">6 &middot; costing</div>
+          <div class="stage-number">253,427</div>
+          <div class="stage-label">modelled cost (GBP, window)</div>
+          <span class="prov prov-synth">synthetic-assigned</span>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      1,067,371 raw rows &middot; 200 tracked SKUs
+      &middot; 104 weeks (2009-12-13 .. 2011-12-04).
+      Stages 4&ndash;6 run on the same 8-week representative window
+      (2010-10-24 .. 2010-12-12), stated on every window identity.
+    </p>
+  </section>
+  <section class="panel hero" id="sec-reconciliation">
+    <h2>Reconciliation &mdash; the 13 cross-stage identities</h2>
+    <p class="note">
+      Each identity compares two numbers computed by <em>independent code paths</em>
+      (across stages, once across repositories). Both sides are shown &mdash; no rounding
+      tricks, no hidden slack. This panel is the product.
+    </p>
+    <div class="table-scroll">
+    <table class="identities">
+      <thead>
+        <tr><th>identity</th><th class="num">left side</th><th class="num">right side</th>
+            <th class="num">tolerance</th><th>unit</th><th>status</th></tr>
+      </thead>
+      <tbody>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(a) cross-repo revenue</div>
+            <div class="id-note">same pipeline, same raw file, same number</div>
+          </td>
+          <td class="num">
+            <div class="id-val">19,643,861.62</div>
+            <div class="id-label">ingest/revenue_gbp</div>
+          </td>
+          <td class="num">
+            <div class="id-val">19,643,861.62</div>
+            <div class="id-label">published/revenue_gbp</div>
+          </td>
+          <td class="num">0.005</td>
+          <td>GBP</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(b) demand conservation</div>
+            <div class="id-note">weekly sum vs line-level sum, tracked SKUs, same window</div>
+          </td>
+          <td class="num">
+            <div class="id-val">3,361,605.00</div>
+            <div class="id-label">ingest/demand_units</div>
+          </td>
+          <td class="num">
+            <div class="id-val">3,361,605.00</div>
+            <div class="id-label">ingest/line_units</div>
+          </td>
+          <td class="num">1e-06</td>
+          <td>units</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(c) line conservation</div>
+            <div class="id-note">pick-list source vs cleaned sales lines</div>
+          </td>
+          <td class="num">
+            <div class="id-val">256,787.00</div>
+            <div class="id-label">invoice_stream/line_count</div>
+          </td>
+          <td class="num">
+            <div class="id-val">256,787.00</div>
+            <div class="id-label">ingest/line_count</div>
+          </td>
+          <td class="num">0.0</td>
+          <td>lines</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(d) forecast coverage</div>
+            <div class="id-note">orphans: none</div>
+          </td>
+          <td class="num">
+            <div class="id-val">185.00</div>
+            <div class="id-label">forecast SKUs known to demand</div>
+          </td>
+          <td class="num">
+            <div class="id-val">185.00</div>
+            <div class="id-label">forecast SKUs total</div>
+          </td>
+          <td class="num">0.0</td>
+          <td>skus</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(e) replenishment coverage</div>
+            <div class="id-note">missing: none; orphans: none</div>
+          </td>
+          <td class="num">
+            <div class="id-val">185.00</div>
+            <div class="id-label">planned SKUs</div>
+          </td>
+          <td class="num">
+            <div class="id-val">185.00</div>
+            <div class="id-label">forecasted SKUs</div>
+          </td>
+          <td class="num">0.0</td>
+          <td>skus</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(f) pick conservation</div>
+            <div class="id-note">pick-tour lines vs invoice-stream lines</div>
+          </td>
+          <td class="num">
+            <div class="id-val">256,787.00</div>
+            <div class="id-label">warehouse/picked_lines_total</div>
+          </td>
+          <td class="num">
+            <div class="id-val">256,787.00</div>
+            <div class="id-label">invoice_stream/line_count</div>
+          </td>
+          <td class="num">0.0</td>
+          <td>lines</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(g) same-invoice evaluation</div>
+            <div class="id-note">invoices per variant: {&#x27;random&#x27;: 33492, &#x27;abc&#x27;: 33492, &#x27;optimal&#x27;: 33492}; lines per variant: {&#x27;random&#x27;: 256787, &#x27;abc&#x27;: 256787, &#x27;optimal&#x27;: 256787}</div>
+          </td>
+          <td class="num">
+            <div class="id-val">256,787.00</div>
+            <div class="id-label">min lines across variants</div>
+          </td>
+          <td class="num">
+            <div class="id-val">256,787.00</div>
+            <div class="id-label">max lines across variants</div>
+          </td>
+          <td class="num">0.0</td>
+          <td>lines</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(h) provenance audit</div>
+            <div class="id-note">travel synthetic-assigned, demand/velocity real</div>
+          </td>
+          <td class="num">
+            <div class="id-val">6.00</div>
+            <div class="id-label">correctly labelled entries</div>
+          </td>
+          <td class="num">
+            <div class="id-val">6.00</div>
+            <div class="id-label">entries audited</div>
+          </td>
+          <td class="num">0.0</td>
+          <td>entries</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(i) window pick conservation</div>
+            <div class="id-note">DES per-order log vs independent stream recount, same window</div>
+          </td>
+          <td class="num">
+            <div class="id-val">33,312.00</div>
+            <div class="id-label">fulfil/picked_lines</div>
+          </td>
+          <td class="num">
+            <div class="id-val">33,312.00</div>
+            <div class="id-label">window/stream_lines</div>
+          </td>
+          <td class="num">0.0</td>
+          <td>lines</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(j) carton conservation</div>
+            <div class="id-note">per-day aggregation vs per-order packing log</div>
+          </td>
+          <td class="num">
+            <div class="id-val">70,820.00</div>
+            <div class="id-label">fulfil/cartons_shipped</div>
+          </td>
+          <td class="num">
+            <div class="id-val">70,820.00</div>
+            <div class="id-label">fulfil/cartons_packed</div>
+          </td>
+          <td class="num">0.0</td>
+          <td>cartons</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(k) drop conservation</div>
+            <div class="id-note">CVRP nodes + peeled full loads vs shipped orders: none lost/duplicated</div>
+          </td>
+          <td class="num">
+            <div class="id-val">4,151.00</div>
+            <div class="id-label">transport/routed_drops</div>
+          </td>
+          <td class="num">
+            <div class="id-val">4,151.00</div>
+            <div class="id-label">fulfil/orders</div>
+          </td>
+          <td class="num">0.0</td>
+          <td>orders</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(l) ledger additivity</div>
+            <div class="id-note">summary total vs sum of the four cost lines, to the cent</div>
+          </td>
+          <td class="num">
+            <div class="id-val">253,427.16</div>
+            <div class="id-label">costing/total_cost</div>
+          </td>
+          <td class="num">
+            <div class="id-val">253,427.16</div>
+            <div class="id-label">costing/component_sum</div>
+          </td>
+          <td class="num">0.005</td>
+          <td>GBP</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="identity-row" data-status="pass">
+          <td>
+            <div class="id-name">(m) window revenue</div>
+            <div class="id-note">costing&#x27;s filter vs ingest&#x27;s filter, same window, to the penny</div>
+          </td>
+          <td class="num">
+            <div class="id-val">1,047,042.41</div>
+            <div class="id-label">costing/window_revenue</div>
+          </td>
+          <td class="num">
+            <div class="id-val">1,047,042.41</div>
+            <div class="id-label">ingest/window_revenue</div>
+          </td>
+          <td class="num">0.005</td>
+          <td>GBP</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+  <section class="panel" id="sec-boundary">
+    <h2>Boundary map &mdash; what is real vs assigned</h2>
+    <p class="note">
+      The exact seam between measured fact and labelled assumption. Everything above the
+      line is observed in UCI Online Retail II or derived from it; everything below is
+      invented, seeded and labelled &mdash; never dressed up as real. Tally: 3 <span class="prov prov-real">real</span> &middot; 1 <span class="prov prov-derived">derived</span> &middot; 6 <span class="prov prov-synth">synthetic-assigned</span>.
+    </p>
+    <div class="table-scroll">
+    <table class="boundary">
+      <thead><tr><th>quantity</th><th>provenance</th><th>note</th></tr></thead>
+      <tbody>
+        <tr class="bnd-row" data-prov="real"><td class="bnd-q">Transactions, invoice composition</td><td><span class="prov prov-real">real</span></td><td class="muted small">UCI Online Retail II</td></tr>
+        <tr class="bnd-row" data-prov="real"><td class="bnd-q">Demand (weekly units per SKU)</td><td><span class="prov prov-real">real</span></td><td class="muted small">lossless aggregation; identity (b)</td></tr>
+        <tr class="bnd-row" data-prov="real"><td class="bnd-q">Seasonality, returns</td><td><span class="prov prov-real">real</span></td><td class="muted small">observed</td></tr>
+        <tr class="bnd-row" data-prov="derived"><td class="bnd-q">Forecasts, uncertainty</td><td><span class="prov prov-derived">derived</span></td><td class="muted small">rolling-origin CV on real demand</td></tr>
+        <tr class="bnd-row" data-prov="synthetic-assigned"><td class="bnd-q">SKU dimensions / weights</td><td><span class="prov prov-synth">synthetic-assigned</span></td><td class="muted small">seeded description-keyword size classes</td></tr>
+        <tr class="bnd-row" data-prov="synthetic-assigned"><td class="bnd-q">Supplier lead times</td><td><span class="prov prov-synth">synthetic-assigned</span></td><td class="muted small">seeded per demand class + jitter</td></tr>
+        <tr class="bnd-row" data-prov="synthetic-assigned"><td class="bnd-q">Warehouse geometry, slotting</td><td><span class="prov prov-synth">synthetic-assigned</span></td><td class="muted small">8 aisles x 25 bays, rectilinear</td></tr>
+        <tr class="bnd-row" data-prov="synthetic-assigned"><td class="bnd-q">Customer geography</td><td><span class="prov prov-synth">synthetic-assigned</span></td><td class="muted small">digest-seeded coordinates; real country sets the band only</td></tr>
+        <tr class="bnd-row" data-prov="synthetic-assigned"><td class="bnd-q">Picker crew, cartons, vehicles</td><td><span class="prov prov-synth">synthetic-assigned</span></td><td class="muted small">4 pickers, 60x40x40cm/20kg cartons, 80-carton vans</td></tr>
+        <tr class="bnd-row" data-prov="synthetic-assigned"><td class="bnd-q">Cost rates (labour, km, holding, facility)</td><td><span class="prov prov-synth">synthetic-assigned</span></td><td class="muted small">printed on every ledger line</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+  <div class="grid-2">
+    <section class="panel" id="sec-costing">
+      <h2>Cost-to-serve ledger (window)</h2>
+      <p class="note">Cost-<em>structure</em> view, NOT a margin statement: every rate is invented and labelled synthetic-assigned.</p>
+      <div class="table-scroll">
+      <table class="costing">
+        <thead><tr><th>item</th><th class="num">GBP</th><th>provenance</th><th>basis</th></tr></thead>
+        <tbody>
+        <tr class=""><td>labour</td><td class="num">3,920.27</td><td><span class="prov prov-synth">synthetic-assigned</span></td><td class="muted small">270.4 DES hours x 14.50/h (rate INVENTED)</td></tr>
+        <tr class=""><td>transport</td><td class="num">214,806.49</td><td><span class="prov prov-synth">synthetic-assigned</span></td><td class="muted small">252,713.5 CVRP km x 0.85/km (km + rate INVENTED)</td></tr>
+        <tr class=""><td>holding</td><td class="num">14,700.40</td><td><span class="prov prov-synth">synthetic-assigned</span></td><td class="muted small">91,878 SS units x 0.02/unit-week x 8w</td></tr>
+        <tr class=""><td>facility</td><td class="num">20,000.00</td><td><span class="prov prov-synth">synthetic-assigned</span></td><td class="muted small">2,500/week fixed x 8w (INVENTED)</td></tr>
+        <tr class="total-row"><td>total cost</td><td class="num">253,427.16</td><td><span class="prov prov-synth">synthetic-assigned</span></td><td class="muted small">sum of the four lines above (identity (l))</td></tr>
+        <tr class=""><td>window revenue</td><td class="num">1,047,042.41</td><td><span class="prov prov-real">real</span></td><td class="muted small">real revenue of the same 8-week window (identity (m))</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="note">Modelled cost is 24.2% of the window's real revenue &mdash; under labelled assumptions only.</p>
+    </section>
+    <section class="panel" id="sec-slotting">
+      <h2>Slotting comparison</h2>
+      <p class="note">Three slottings, the <em>identical</em> real invoice set (identity (g)); mean pick travel per invoice on synthetic geometry.</p>
+      <div class="bars">
+        <div class="bar-row">
+          <div class="bar-label">random</div>
+          <div class="bar-track"><div class="bar-fill" style="width: 100.0%"></div></div>
+          <div class="bar-value">214.3 m</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">abc</div>
+          <div class="bar-track"><div class="bar-fill" style="width: 85.5%"></div></div>
+          <div class="bar-value">183.2 m <span class="muted">(-14.5% vs random)</span></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">optimal</div>
+          <div class="bar-track"><div class="bar-fill bar-best" style="width: 84.1%"></div></div>
+          <div class="bar-value">180.2 m <span class="muted">(-15.9% vs random)</span></div>
+        </div>
+      </div>
+      <p class="note">Reported, not hidden: with one distance per slot the assignment optimum <em>is</em> velocity-sorted placement; optimal only re-breaks velocity ties vs abc.</p>
+    </section>
+  </div>
+  <section class="panel" id="sec-scenario">
+    <h2>Scenario what-if &mdash; shock one input, the ledger still reconciles</h2>
+    <p class="note">
+      Each scenario perturbs <strong>one</strong> input, re-runs only the stages that input
+      feeds (reusing the stage engines verbatim), and re-checks <strong>all 13</strong>
+      identities on the perturbed run. Source: <strong>committed real-row fixture (deterministic CI path)</strong> &mdash;
+      the full-run baseline would need the 51-minute CVRP build, so the what-if runs the fast,
+      deterministic fixture path (smaller magnitudes than the full run above; the mechanics are identical).
+    </p>
+    <div class="tabs">
+      <button class="tab active" data-tab="scn0" type="button">demand</button>
+      <button class="tab" data-tab="scn1" type="button">cost-rate</button>
+    </div>
+      <div class="scn-panel active" id="scn0">
+        <div class="scn-head">
+          <div class="scn-title">demand-surge x1.20 on the erratic class</div>
+          <span class="badge pass">13/13 identities still reconcile</span>
+        </div>
+        <p class="note">Perturbed input: forecast demand + uncertainty for the erratic class (x1.20, multiplicative) &nbsp;<span class="prov prov-derived">derived</span></p>
+        <div class="ba-bars">
+          <div class="ba-group">
+            <div class="ba-metric">holding cost <span class="muted">(GBP, synthetic-assigned)</span></div>
+            <div class="ba-row"><span class="ba-tag">before</span>
+              <div class="bar-track"><div class="bar-fill ba-before" style="width: 87.4%"></div></div>
+              <span class="ba-val">467.19</span></div>
+            <div class="ba-row"><span class="ba-tag">after</span>
+              <div class="bar-track"><div class="bar-fill ba-after moved" style="width: 100.0%"></div></div>
+              <span class="ba-val">534.36 <span class="delta">+14.38%</span></span></div>
+          </div>
+          <div class="ba-group">
+            <div class="ba-metric">total cost <span class="muted">(GBP, synthetic-assigned)</span></div>
+            <div class="ba-row"><span class="ba-tag">before</span>
+              <div class="bar-track"><div class="bar-fill ba-before" style="width: 99.9%"></div></div>
+              <span class="ba-val">45,920.63</span></div>
+            <div class="ba-row"><span class="ba-tag">after</span>
+              <div class="bar-track"><div class="bar-fill ba-after moved" style="width: 100.0%"></div></div>
+              <span class="ba-val">45,987.80 <span class="delta">+0.15%</span></span></div>
+          </div>
+        </div>
+        <div class="table-scroll">
+        <table class="scn-table">
+          <thead><tr><th>stage</th><th>metric</th><th class="num">baseline</th><th class="num">perturbed</th><th class="num">delta</th><th class="num">pct</th><th>provenance</th></tr></thead>
+          <tbody>
+            <tr class=""><td>1 forecast</td><td>forecast units, erratic class</td><td class="num">3,508.10</td><td class="num">4,209.72</td><td class="num">701.62</td><td class="num">+20.00%</td><td><span class="prov prov-derived">derived</span></td></tr>
+            <tr class=""><td>2 inventory</td><td>safety stock (total)</td><td class="num">2,919.91</td><td class="num">3,339.72</td><td class="num">419.82</td><td class="num">+14.38%</td><td><span class="prov prov-synth">synthetic-assigned</span></td></tr>
+            <tr class=""><td>2 inventory</td><td>order-up-to (total)</td><td class="num">4,818.93</td><td class="num">5,604.15</td><td class="num">785.22</td><td class="num">+16.29%</td><td><span class="prov prov-synth">synthetic-assigned</span></td></tr>
+            <tr class=""><td>5 costing</td><td>holding cost</td><td class="num">467.19</td><td class="num">534.36</td><td class="num">67.17</td><td class="num">+14.38%</td><td><span class="prov prov-synth">synthetic-assigned</span></td></tr>
+            <tr class="unchanged"><td>5 costing</td><td>transport cost</td><td class="num">25,417.76</td><td class="num">25,417.76</td><td class="num">0.00</td><td class="num">+0.00%</td><td><span class="prov prov-synth">synthetic-assigned</span></td></tr>
+            <tr class="unchanged"><td>5 costing</td><td>labour cost</td><td class="num">35.69</td><td class="num">35.69</td><td class="num">0.00</td><td class="num">+0.00%</td><td><span class="prov prov-synth">synthetic-assigned</span></td></tr>
+            <tr class=""><td>5 costing</td><td>total cost</td><td class="num">45,920.63</td><td class="num">45,987.80</td><td class="num">67.17</td><td class="num">+0.15%</td><td><span class="prov prov-synth">synthetic-assigned</span></td></tr>
+            <tr class="unchanged"><td>6 ledger</td><td>window revenue</td><td class="num">14,545.03</td><td class="num">14,545.03</td><td class="num">0.00</td><td class="num">+0.00%</td><td><span class="prov prov-real">real</span></td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+      <div class="scn-panel" id="scn1">
+        <div class="scn-head">
+          <div class="scn-title">cost-rate shock x1.20 on transport GBP/km</div>
+          <span class="badge pass">13/13 identities still reconcile</span>
+        </div>
+        <p class="note">Perturbed input: transport cost rate (0.85 -&gt; 1.02 GBP/km) &nbsp;<span class="prov prov-synth">synthetic-assigned</span></p>
+        <div class="ba-bars">
+          <div class="ba-group">
+            <div class="ba-metric">transport cost <span class="muted">(GBP, synthetic-assigned)</span></div>
+            <div class="ba-row"><span class="ba-tag">before</span>
+              <div class="bar-track"><div class="bar-fill ba-before" style="width: 83.3%"></div></div>
+              <span class="ba-val">25,417.76</span></div>
+            <div class="ba-row"><span class="ba-tag">after</span>
+              <div class="bar-track"><div class="bar-fill ba-after moved" style="width: 100.0%"></div></div>
+              <span class="ba-val">30,501.31 <span class="delta">+20.00%</span></span></div>
+          </div>
+          <div class="ba-group">
+            <div class="ba-metric">total cost <span class="muted">(GBP, synthetic-assigned)</span></div>
+            <div class="ba-row"><span class="ba-tag">before</span>
+              <div class="bar-track"><div class="bar-fill ba-before" style="width: 90.0%"></div></div>
+              <span class="ba-val">45,920.63</span></div>
+            <div class="ba-row"><span class="ba-tag">after</span>
+              <div class="bar-track"><div class="bar-fill ba-after moved" style="width: 100.0%"></div></div>
+              <span class="ba-val">51,004.18 <span class="delta">+11.07%</span></span></div>
+          </div>
+        </div>
+        <div class="table-scroll">
+        <table class="scn-table">
+          <thead><tr><th>stage</th><th>metric</th><th class="num">baseline</th><th class="num">perturbed</th><th class="num">delta</th><th class="num">pct</th><th>provenance</th></tr></thead>
+          <tbody>
+            <tr class="unchanged"><td>4b transport</td><td>CVRP route km</td><td class="num">29,903.24</td><td class="num">29,903.24</td><td class="num">0.00</td><td class="num">+0.00%</td><td><span class="prov prov-synth">synthetic-assigned</span></td></tr>
+            <tr class=""><td>5 costing</td><td>transport cost</td><td class="num">25,417.76</td><td class="num">30,501.31</td><td class="num">5,083.55</td><td class="num">+20.00%</td><td><span class="prov prov-synth">synthetic-assigned</span></td></tr>
+            <tr class="unchanged"><td>5 costing</td><td>holding cost</td><td class="num">467.19</td><td class="num">467.19</td><td class="num">0.00</td><td class="num">+0.00%</td><td><span class="prov prov-synth">synthetic-assigned</span></td></tr>
+            <tr class=""><td>5 costing</td><td>total cost</td><td class="num">45,920.63</td><td class="num">51,004.18</td><td class="num">5,083.55</td><td class="num">+11.07%</td><td><span class="prov prov-synth">synthetic-assigned</span></td></tr>
+            <tr class="unchanged"><td>6 ledger</td><td>window revenue</td><td class="num">14,545.03</td><td class="num">14,545.03</td><td class="num">0.00</td><td class="num">+0.00%</td><td><span class="prov prov-real">real</span></td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    <p class="note">
+      Honest reading: the demand surge is a <em>planning-side</em> shock &mdash; it lifts the
+      derived forecast and its safety-stock holding charge, but the physical fulfilment of the
+      already-real orders (picks, cartons, CVRP km, labour) does not move, so those lines stay
+      flat by construction. The cost-rate shock moves a labelled synthetic rate, not a distance.
+      Neither is a profit statement; the real vs synthetic boundary is exactly the baseline's.
+    </p>
+  </section>
+  <footer class="foot">
+    <div>Receipts: <code>artifacts/full_run.json</code> (full run) &middot;
+      <code>web/scenario_fixture.json</code> (fixture what-if) &middot; schema 1.0
+      &middot; synthetic seed 42 &middot; offline / self-contained (no CDNs, no network).</div>
+    <div class="muted small">Real data: UCI Online Retail II &mdash; Chen (2019), CC BY 4.0 (doi:10.24432/C5CG6D),
+      read at build time, not redistributed. Cost rates and physical layers are synthetic-assigned and labelled;
+      this is a cost-structure view, not a profit or valuation claim. Proprietary &mdash; portfolio review only.</div>
+  </footer>
+</div>
+<script>
+    (function () {
+      var root = document.documentElement;
+      var btn = document.getElementById('themeToggle');
+      if (btn) {
+        btn.addEventListener('click', function () {
+          var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var current = root.getAttribute('data-theme') || (dark ? 'dark' : 'light');
+          root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+        });
+      }
+      var tabs = document.querySelectorAll('.tab');
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          var id = tab.getAttribute('data-tab');
+          document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+          document.querySelectorAll('.scn-panel').forEach(function (p) { p.classList.remove('active'); });
+          tab.classList.add('active');
+          var panel = document.getElementById(id);
+          if (panel) { panel.classList.add('active'); }
+        });
+      });
+    })();
+</script>
+</body>
+</html>
