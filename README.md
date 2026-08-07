@@ -395,6 +395,50 @@ UCI dataset. `tests/test_scenario.py` asserts the perturbation is pure and scope
 that it traces to the ledger exactly, and that all 13 identities hold under every
 perturbed run.
 
+## Cost-driver breakdown + reconciliation identity (n) — where the cost comes from
+
+Identity (l) proves the ledger total equals the sum of its four cost lines; it
+never proves that any *line* equals the physical work it prices. A wrong rate,
+or a line costed off a different driver than the one another stage booked, sails
+straight through (l). `cost_drivers.py` (a chain consumer alongside `app.py` and
+`scenario.py`, reading the committed artifact — it recomputes nothing) closes
+that seam with a **14th identity** and turns the ledger into a driver breakdown.
+
+**Identity (n) — cost-driver reconstruction.** Each cost line is rebuilt, through
+an independent code path, from its physical **driver** — a quantity a *different*
+stage registered in the reconciliation ledger — times its published synthetic
+rate, and checked against costing's own line to the cent (and their sum against
+the registered total):
+
+| line | driver (registering stage) | quantity | × rate | = rebuilt | ledger | cost share | elasticity of total |
+|---|---|---:|---:|---:|---:|---:|---:|
+| labour | DES picking hours (4a) | 270.4 h | 14.50/h | 3,920.27 | 3,920.27 | 1.55% | 0.0155 |
+| transport | CVRP route km (4b) | 252,713.5 km | 0.85/km | 214,806.49 | 214,806.49 | **84.76%** | 0.8476 |
+| holding | safety-stock units (2) | 91,877.5 u | 0.02/u-wk × 8w | 14,700.40 | 14,700.40 | 5.80% | 0.0580 |
+| facility | window weeks | 8 wk | 2,500/wk | 20,000.00 | 20,000.00 | 7.89% | 0.0789 |
+| **total** | | | | **253,427.16** | **253,427.16** | 100.00% | |
+
+Measured on the committed full run, **identity (n) holds** (rebuilt total
+253,427.16 GBP == ledger total cost 253,427.16 GBP, to the cent). It is a
+cross-stage check the a–m suite does not make — it ties stage 5's priced lines
+back to the physical drivers stages 2 / 4a / 4b booked — and it is **additive to
+the 13 identities the artifact records; the committed artifact is unchanged**.
+
+**The breakdown, honestly.** The modelled cost-to-serve is **84.8% transport**,
+and because the ledger total is linear in every driver, the elasticity of the
+total to a +1% move in any single driver *equals that driver's cost share
+exactly* (0.8476 for transport) — verified not just analytically but by
+re-running the costing engine under a scaled rate. The dominant driver stands on
+the most-invented inputs (CVRP km on seeded coordinates, a synthetic GBP/km
+rate), which is exactly why the ledger makes no profit claim: nothing in it is
+stronger than its weakest input. Every rate is INVENTED (synthetic-assigned,
+labelled); revenue is real; this is a cost-structure view, not a margin
+statement. `tests/test_cost_drivers.py` asserts (n) holds on both the fixture
+ledger and the committed artifact, gives each line a deliberate-corruption FAIL
+path (a wrong rate, a miscounted driver), and checks the elasticity==share
+identity by re-running the engine. Deterministic deliverables:
+`python cost_drivers.py` → `deliverables/cost_drivers.{md,csv}`.
+
 ## How to run
 
 ```bash
@@ -417,6 +461,9 @@ python -m chain --deliverables        # deliverables/chain_report.pdf + chain_le
 # 4) stress it: perturb one input, prove the ledger still reconciles
 python scenario.py                    # deliverables/scenarios.md + scenarios.csv (fixture path)
 #    (or on the full dataset: python scenario.py --full)
+
+# 5) break it down: cost-driver breakdown + identity (n) on the committed artifact
+python cost_drivers.py                # deliverables/cost_drivers.md + cost_drivers.csv
 
 ruff check .   # lint gate
 pytest -q      # fixture-based tests; full-data tests skip without raw data
@@ -458,6 +505,14 @@ The dataset itself is not redistributed (CC BY 4.0, see [CREDITS.md](CREDITS.md)
   stages it feeds by reusing the existing engines, and re-checks all 13
   identities on the perturbed run — proving the ledger still reconciles under a
   shock. Deterministic deliverables in `deliverables/scenarios.{md,csv}`.
+- [x] **Cost-driver breakdown + identity (n)** (done): `cost_drivers.py` rebuilds
+  each cost line from the physical driver another stage registered (hours, km,
+  safety-stock units, weeks) times its published rate, checks the rebuild against
+  costing's own line to the cent (a 14th identity, additive to a–m; the committed
+  artifact is unchanged), and reports the cost share + the total's elasticity to
+  each driver (== the share exactly, verified by re-running the engine). Modelled
+  cost is 84.8% transport. Deterministic deliverables in
+  `deliverables/cost_drivers.{md,csv}`.
 
 ## Docs
 
