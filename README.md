@@ -439,6 +439,73 @@ path (a wrong rate, a miscounted driver), and checks the elasticity==share
 identity by re-running the engine. Deterministic deliverables:
 `python cost_drivers.py` → `deliverables/cost_drivers.{md,csv}`.
 
+## Inter-stage sensitivity — how a forecast error reaches the final ledger (identity (o))
+
+`scenario.py` proves the ledger still reconciles at ONE perturbed point; it does
+not measure how *hard* the final pound leans on the forecast. `sensitivity.py` (a
+chain consumer alongside `app.py`, `scenario.py` and `cost_drivers.py`) answers
+the question no single-silo forecast demo can: **what is the pound sensitivity of
+the whole delivered cost-to-serve to a forecast error, once the forecast is wired
+through inventory, fulfilment, transport and costing?** It sweeps a proportional
+forecast-demand error across a deterministic grid (×0.80 … ×1.20), re-runs only
+the stages that error feeds — reusing the existing inventory + costing engines
+verbatim, never re-inventing one — traces the pound impact stage by stage, and
+re-checks all 13 cross-stage identities at every grid point.
+
+**Identity (o) — forecast-error containment.** Under a ×f proportional whole-book
+forecast surge, the modelled total cost-to-serve equals, to the cent,
+
+    total(f) = base_total + (f − 1) × base_holding
+
+i.e. the surge moves **only the holding line**. Labour, transport, facility and
+the real window revenue are invariant — because the physical fulfilment (picks,
+cartons, CVRP km, labour hours) stands on the **immutable real invoice stream**,
+and the revenue is real. The propagation is exact (safety stock is linear in the
+forecast sigma via the square-root law; the holding line is linear in safety
+stock — no rounding), so the identity holds at every grid factor, up and down,
+and is **verified by re-running the inventory + costing engines**, not merely
+asserted. Algebraically it says the arc-elasticity of total cost to a forecast
+surge equals the **holding cost share exactly**.
+
+Fixture ladder (the deterministic CI path, `deliverables/sensitivity.{md,csv}`;
+the holding share is 1.02% here because transport dominates the small fixture even
+more than the full run):
+
+| forecast ×f | safety stock (u) | holding (GBP) | transport (GBP) | total (GBP) | window revenue (GBP) | elasticity of total |
+|---|---:|---:|---:|---:|---:|---:|
+| ×0.80 | 2,335.9 | 373.75 | 25,417.76 | 45,827.20 | 14,545.03 | 0.0102 |
+| ×1.00 (base) | 2,919.9 | 467.19 | 25,417.76 | 45,920.63 | 14,545.03 | — |
+| ×1.20 | 3,503.9 | 560.62 | 25,417.76 | 46,014.07 | 14,545.03 | 0.0102 |
+
+Transport, labour, facility and revenue do not move a penny across the whole
+ladder; only holding (and total, by exactly the holding delta) responds.
+
+**On the committed full run**, the same linear identity gives the elasticity
+directly from the artifact's own holding share: **0.0580 (5.80%)** — a doubling of
+forecast demand would raise modelled cost-to-serve by 5.80%, and every
+delivered-cost line and the real revenue would be unmoved. That containment is the
+finding: a forecast error cannot reach the delivered-cost lines of an already-real
+order book.
+
+**Dilution corollary.** A surge confined to ONE demand class is contained further
+— its elasticity of total is the holding share × that class's share of total
+safety stock. On the fixture the erratic class carries 71.9% of safety stock, so a
+×1.20 erratic-only surge moves the total with elasticity 0.0073 = 0.0102 × 0.7189
+(measured == predicted; 13/13 identities hold).
+
+Honesty is unchanged: the forecast is a `derived` input (a labelled demand-scale
+error, never claiming to touch real data); every cost rate is INVENTED
+(synthetic-assigned, labelled); revenue is real. Identity (o) is a cross-stage
+check the a–n suite does not make, and it is **additive to the 13 identities (a–m)
+the committed artifact records; the artifact itself is unchanged**.
+`tests/test_sensitivity.py` asserts (o) holds on the fixture ladder, that safety
+stock scales linearly and the physical lines are invariant to the cent, that the
+measured elasticity equals the holding share, that the dilution law reconstructs
+the single-class elasticity, that every corruption (a moved physical line, a
+non-linear total, a broken identity) has a FAIL path, and that all 13 identities
+hold at every grid factor. Deterministic deliverables: `python sensitivity.py` →
+`deliverables/sensitivity.{md,csv}`.
+
 ## How to run
 
 ```bash
@@ -464,6 +531,10 @@ python scenario.py                    # deliverables/scenarios.md + scenarios.cs
 
 # 5) break it down: cost-driver breakdown + identity (n) on the committed artifact
 python cost_drivers.py                # deliverables/cost_drivers.md + cost_drivers.csv
+
+# 6) trace a forecast error: sweep it, prove it reaches only the holding line (identity (o))
+python sensitivity.py                 # deliverables/sensitivity.md + sensitivity.csv (fixture path)
+#    (or on the full dataset: python sensitivity.py --full)
 
 ruff check .   # lint gate
 pytest -q      # fixture-based tests; full-data tests skip without raw data
@@ -513,6 +584,17 @@ The dataset itself is not redistributed (CC BY 4.0, see [CREDITS.md](CREDITS.md)
   each driver (== the share exactly, verified by re-running the engine). Modelled
   cost is 84.8% transport. Deterministic deliverables in
   `deliverables/cost_drivers.{md,csv}`.
+- [x] **Inter-stage sensitivity + identity (o)** (done): `sensitivity.py` sweeps a
+  proportional forecast-demand error across a deterministic grid, re-runs only the
+  stages it feeds (inventory → costing) by reusing the existing engines, traces the
+  pound impact to the ledger and re-checks all 13 identities at every grid factor.
+  Identity (o) proves a whole-book forecast surge moves ONLY the holding line —
+  labour, transport, facility and the real revenue are invariant to the cent
+  because the physical fulfilment stands on the immutable real invoice stream — so
+  the elasticity of total cost to a forecast error equals the holding cost share
+  exactly (0.0580 on the committed full run). A 15th cross-stage identity, additive
+  to a–n; the committed artifact is unchanged. Deterministic deliverables in
+  `deliverables/sensitivity.{md,csv}`.
 
 ## Docs
 
@@ -524,6 +606,10 @@ The dataset itself is not redistributed (CC BY 4.0, see [CREDITS.md](CREDITS.md)
   seams, not the silos, are where distributors lose money.
 - [deliverables/scenarios.md](deliverables/scenarios.md) — the shock what-if: one
   input perturbed, traced to the ledger, all 13 identities still holding.
+- [deliverables/sensitivity.md](deliverables/sensitivity.md) — the forecast-error
+  sensitivity ladder: a proportional forecast surge swept across a grid, proving
+  (identity (o)) it reaches only the holding line while every delivered-cost line
+  and the real revenue stay put.
 - [CREDITS.md](CREDITS.md) — dataset citation, method references, adapted-from notes.
 
 ## License
