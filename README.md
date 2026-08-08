@@ -506,6 +506,86 @@ non-linear total, a broken identity) has a FAIL path, and that all 13 identities
 hold at every grid factor. Deterministic deliverables: `python sensitivity.py` →
 `deliverables/sensitivity.{md,csv}`.
 
+## Per-order cost-to-serve — the ledger spread over every real order (identity (p))
+
+Identity (l) proves the ledger total; identity (n) proves each line prices the
+physical driver another stage booked. Neither says anything about ORDERS — yet
+cost-to-serve only becomes a decision tool once the aggregate is spread over
+the real orders it was incurred for, and that spread is exactly where practical
+costing breaks: pounds go missing in the allocation, or phantom pounds appear,
+and nobody notices because only the total is ever checked. `order_costs.py` (a
+chain consumer alongside `app.py`, `scenario.py`, `cost_drivers.py` and
+`sensitivity.py`) closes that seam with a **16th identity** and turns the
+ledger into the per-order cost-to-serve distribution a distribution controller
+actually works with.
+
+**Identity (p) — order-level allocation conservation.** Stage 5's published,
+labelled allocation rules spread each cost line over the window's real orders
+(labour by the order's own DES pick minutes; transport by its carton share of
+its delivery day's CVRP km; facility split equally per order; holding stays on
+the **SKU plane** — it is a property of the stage-2 stock plan, not of an
+order, and is deliberately not forced onto orders). Identity (p) machine-checks
+that this two-plane spread loses nothing and invents nothing: each order-plane
+column sums back to its registered ledger line **to the cent**, the SKU-plane
+holding to the holding line, both planes jointly to the ledger total **to the
+cent**, the per-order REAL revenue to the window revenue **to the penny** — and
+there is exactly one economics row per order the DES shipped (none lost, none
+phantom, none duplicated, no NaNs). All 13 cross-stage identities are
+re-checked on the same run.
+
+Measured on the full dataset (identity (p) PASS, 13/13 identities PASS; the
+run reproduces the committed artifact's stage numbers exactly — 252,713.5 CVRP
+km, 270.4 labour hours, total 253,427.16, revenue 1,047,042.41 GBP):
+
+| measure | full run | fixture (CI path) |
+|---|---:|---:|
+| orders | 4,151 | 320 |
+| delivered cost, order plane (GBP) | 238,726.76 | 45,453.45 |
+| holding, SKU plane (GBP) | 14,700.40 | 467.19 |
+| reassembled == ledger total, identity (p) (GBP) | 253,427.16 == 253,427.16 | 45,920.63 == 45,920.63 |
+| window revenue, REAL (GBP) | 1,047,042.41 | 14,545.03 |
+| mean / median cost per order (GBP) | 57.51 / 20.67 | 142.04 / 108.92 |
+| top-decile share of delivered cost | **59.0%** | 27.7% |
+| Gini (delivered cost across orders) | 0.665 | 0.302 |
+| model-uncovered orders (cost > own revenue) | 191 (4.6%) | 312 (97.5%) |
+
+**The findings, honestly.** Modelled cost-to-serve is heavily skewed: the
+median order costs 20.67 GBP to serve but the mean is 57.51, and the costliest
+10% of orders (416 of 4,151) carry **59.0%** of the delivered cost — the
+classic cost-to-serve concentration, now with the spread itself
+machine-verified rather than trusted. The **whale curve** (cumulative
+model-implied coverage gap, best-covered orders first) peaks at 822,489 GBP
+after 95.4% of the book and ends at 808,316 GBP = window revenue − delivered
+cost *exactly* — the curve reconciles to the same ledger it was built from;
+the costliest tail takes back 14,173 GBP, only 1.7% of the peak, because
+modelled cost is 24.2% of revenue under the labelled rates — reported as
+measured, never sold as a profit finding. The 191 **model-uncovered** orders
+(modelled cost-to-serve above their own real revenue) sit at BOTH ends of the
+cost ranking: 55 in the costliest decile (orders whose modelled km and cartons
+are large) and 63 in the cheapest (tiny baskets whose real revenue does not
+cover even the equal facility split plus a shared drop) — under invented rates
+this describes the model's shape, never a real order's profitability. On the
+fixture, 97.5% of orders are model-uncovered — the small sample's invented
+transport dwarfs its small real revenue; reported as measured and labelled,
+which is exactly why the CI deliverables are the fixture path while the
+numbers above are the full run's.
+
+Honesty is unchanged: revenue is real; every cost rate, hour, km and
+safety-stock unit is INVENTED (synthetic-assigned, labelled); the facility
+equal-split is itself a labelled allocation choice (small orders look expensive
+under any per-order spread of a fixed charge). This is a cost-structure view,
+never a profit claim. Identity (p) is additive to the identities the committed
+artifact records (a–m) and to the consumer-computed (n) and (o); **the
+committed artifact is unchanged**. `tests/test_order_costs.py` asserts (p)
+holds with hand-checked expectations on the fixture (320 orders, facility
+62.50/order exactly, whale endpoint −30,908.42 == revenue − delivered), that
+every cost column reassembles to its ledger line to the cent, that the decile
+table reconciles to the cent and the whale curve is concave, that every
+corruption (a lost order, a phantom order, a duplicated row, a cent of drift,
+a NaN, a holding mismatch) has a FAIL path, and that the deliverables are
+byte-deterministic. Deterministic deliverables: `python order_costs.py` →
+`deliverables/order_costs.{md,csv}`.
+
 ## How to run
 
 ```bash
@@ -535,6 +615,10 @@ python cost_drivers.py                # deliverables/cost_drivers.md + cost_driv
 # 6) trace a forecast error: sweep it, prove it reaches only the holding line (identity (o))
 python sensitivity.py                 # deliverables/sensitivity.md + sensitivity.csv (fixture path)
 #    (or on the full dataset: python sensitivity.py --full)
+
+# 7) spread it: per-order cost-to-serve, proven to reassemble to the cent (identity (p))
+python order_costs.py                 # deliverables/order_costs.md + order_costs.csv (fixture path)
+#    (or on the full dataset: python order_costs.py --full)
 
 ruff check .   # lint gate
 pytest -q      # fixture-based tests; full-data tests skip without raw data
@@ -595,6 +679,18 @@ The dataset itself is not redistributed (CC BY 4.0, see [CREDITS.md](CREDITS.md)
   exactly (0.0580 on the committed full run). A 15th cross-stage identity, additive
   to a–n; the committed artifact is unchanged. Deterministic deliverables in
   `deliverables/sensitivity.{md,csv}`.
+- [x] **Per-order cost-to-serve + identity (p)** (done): `order_costs.py` spreads
+  the ledger over the window's real orders under stage 5's published allocation
+  rules (labour by own pick minutes, transport by carton share of day km,
+  facility equal per order; holding stays on the SKU plane) and proves
+  order-level allocation conservation — every cost line reassembles to the cent
+  across both planes, the real revenue to the penny, exactly one row per shipped
+  order. On the measured full run: the costliest 10% of the 4,151 real orders
+  carry 59.0% of delivered cost (Gini 0.665), 191 orders (4.6%) are
+  model-uncovered under the labelled rates, and the whale curve's endpoint
+  equals revenue − delivered cost exactly. A 16th cross-stage identity, additive
+  to a–o; the committed artifact is unchanged. Deterministic deliverables in
+  `deliverables/order_costs.{md,csv}`.
 
 ## Docs
 
@@ -610,6 +706,10 @@ The dataset itself is not redistributed (CC BY 4.0, see [CREDITS.md](CREDITS.md)
   sensitivity ladder: a proportional forecast surge swept across a grid, proving
   (identity (o)) it reaches only the holding line while every delivered-cost line
   and the real revenue stay put.
+- [deliverables/order_costs.md](deliverables/order_costs.md) — the per-order
+  cost-to-serve distribution: the ledger spread over every real order under
+  published allocation rules, proven (identity (p)) to reassemble to the cent,
+  with the decile table and the reconciling whale curve.
 - [CREDITS.md](CREDITS.md) — dataset citation, method references, adapted-from notes.
 
 ## License
